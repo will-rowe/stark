@@ -36,12 +36,12 @@ func (DB *DB) Set(key string, record *Record) error {
 
 		// if the existingCID in the local keystore matches the previousCID of the incoming Record, assume this is an update, otherwise it is an overwrite
 		if existingCID == record.GetPreviousCID() {
-			record.AddComment("updating record.")
+			record.AddComment("Set: updating record.")
 		} else {
-			record.AddComment("overwriting record.")
+			record.AddComment("Set: overwriting record.")
 		}
 	}
-	record.AddComment("adding record to IPFS.")
+	record.AddComment("Set: adding record to IPFS.")
 
 	// marshal Record data to JSON
 	jsonData, err := json.Marshal(record)
@@ -95,7 +95,6 @@ func (DB *DB) Get(key string) (*Record, error) {
 
 	// add the pulled CID to this record
 	record.PreviousCID = cid
-	record.AddComment("record retrieved from IPFS.")
 	return record, nil
 }
 
