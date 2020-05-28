@@ -1,4 +1,4 @@
-// Package stark description.
+// Package stark is an IPFS-backed database for recording and distributing sequencing data.
 package stark
 
 import (
@@ -66,7 +66,7 @@ func SetLocalStorageDir(path string) func(*DB) error {
 	}
 }
 
-// SetEncryption is an option setter for the OpenDB constructor that tells starkdb to make encyrpted writes to IPFS using the private key in STARK_DB_ENCRYPTION_KEY env variable.
+// SetEncryption is an option setter for the OpenDB constructor that tells starkdb to make encrypted writes to IPFS using the private key in STARK_DB_ENCRYPTION_KEY env variable.
 func SetEncryption(val bool) func(*DB) error {
 	return func(DB *DB) error {
 		return DB.setEncryption(val)
@@ -135,7 +135,7 @@ func OpenDB(project string, options ...func(*DB) error) (*DB, func() error, erro
 	// sanitize the project name
 	project = strings.ReplaceAll(project, " ", "_")
 
-	// create the uninitalised DB
+	// create the uninitialised DB
 	starkDB := &DB{
 		project: project,
 
@@ -242,7 +242,7 @@ func (DB *DB) setAnnounce(announce bool) error {
 	return nil
 }
 
-// setEncryption tells starkdb to make encyrpted writes.
+// setEncryption tells starkdb to make encrypted writes.
 func (DB *DB) setEncryption(val bool) error {
 
 	// check for the env variable
