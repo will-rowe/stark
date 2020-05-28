@@ -4,7 +4,9 @@ go:
   - 1.14.x
 
 before_install:
-  - sudo apt-get -y install ipfs
+  - wget -O ipfs.tar.gz https://dist.ipfs.io/go-ipfs/v0.5.1/go-ipfs_v0.5.1_linux-amd64.tar.gz
+  - tar -xvf ipfs.tar.gz && cd go-ipfs
+  - ./install.sh
   - ipfs init
   - go get -t -v ./...
 
