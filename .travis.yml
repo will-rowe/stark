@@ -4,8 +4,9 @@ go:
   - 1.14.x
 
 before_install:
-  - go get -t -v ./...
+  - sudo apt-get -y install ipfs
   - ipfs init
+  - go get -t -v ./...
 
 script:
   - go test -race -coverprofile=coverage.txt -covermode=atomic ./...
