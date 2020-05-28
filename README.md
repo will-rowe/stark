@@ -3,7 +3,7 @@
   <h3>a Command Line Utility and IPFS-backed database for recording and distributing sequencing data</h3>
   <hr>
   <a href="https://travis-ci.org/will-rowe/stark"><img src="https://travis-ci.org/will-rowe/stark.svg?branch=master" alt="travis"></a>
-  <a href="https://godoc.org/github.com/will-rowe/stark"><img src="https://godoc.org/github.com/will-rowe/stark?status.svg" alt="GoDoc"></a>
+  <a href="https://godoc.org/github.com/will-rowe/stark/starkdb"><img src="https://godoc.org/github.com/will-rowe/stark?status.svg" alt="GoDoc"></a>
   <a href="https://goreportcard.com/report/github.com/will-rowe/stark"><img src="https://goreportcard.com/badge/github.com/will-rowe/stark" alt="goreportcard"></a>
   <a href="https://codecov.io/gh/will-rowe/stark"><img src="https://codecov.io/gh/will-rowe/stark/branch/master/graph/badge.svg" alt="codecov"></a>
 </div>
@@ -20,7 +20,7 @@
 
 **stark** is a Command Line Utility for running and interacting with a **starkDB**.
 
-**starkDB** is an IPFS-backed database for recording and distributing sequencing data.
+**starkdb** is a Go package for an IPFS-backed database for recording and distributing sequencing data.
 
 ### The database
 
@@ -33,21 +33,31 @@
 - `records` are a data structure used to represent a Nanopore sequencing run (but can be hijacked to represent Samples and Libraries too)
 - `records` are defined in [protobuf](https://developers.google.com/protocol-buffers) format (which is compiled with Go bindings using [this makefile](./schema/Makefile))
 
+### Requirements
+
+Both the Go package and the Command Line Utility require the `go-ipfs` command line utility. See download and install instructions [here](https://docs.ipfs.io/guides/guides/install/).
+
 ## The Go Package
 
-### Example
+### Install
+
+```sh
+go get github.com/will-rowe/stark/starkdb
+```
+
+### Usage example
 
 ```Go
 package main
 
 import (
-  "github.com/will-rowe/stark"
+  "github.com/will-rowe/stark/starkdb"
 )
 
 func main() {
 
   // init a starkDB
-  db, dbCloser, err := stark.OpenDB("my project", stark.SetLocalStorageDir("/tmp/starkdb"))
+  db, dbCloser, err := starkdb.OpenDB("my project", stark.SetLocalStorageDir("/tmp/starkdb"))
   if err != nil {
     panic(err)
   }
@@ -56,7 +66,7 @@ func main() {
   defer dbCloser()
 
   // create a record
-  record, err := stark.NewRecord(SetAlias("my first sample"))
+  record, err := starkdb.NewRecord(SetAlias("my first sample"))
   if err != nil {
     panic(err)
   }
