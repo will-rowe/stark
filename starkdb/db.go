@@ -140,8 +140,9 @@ func OpenDB(project string, options ...func(*DB) error) (*DB, func() error, erro
 		project: project,
 
 		// defaults
-		pinning:  true,
-		announce: false,
+		ephemeral: false,
+		pinning:   true,
+		announce:  false,
 
 		// add in the currently unsettable options
 		allowNetwork: true,
