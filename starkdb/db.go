@@ -156,6 +156,16 @@ func OpenDB(project string, options ...func(*DB) error) (*DB, func() error, erro
 		}
 	}
 
+	// get some context
+	starkDB.ctx, starkDB.ctxCancel = context.WithCancel(context.Background())
+
+	// setup the IPFS Core API
+	iapi, inode, err := setupIPFS(starkDB.ctx, starkDB.ephemeral)
+	if err != nil {
+		return nil, nil, errors.Wrap(err, ErrNewDb.Error())
+	}
+	starkDB.ipfsCoreAPI, starkDB.ipfsNode = iapi, inode
+
 	// setup the local keystore
 	if len(starkDB.keystorePath) == 0 {
 		starkDB.keystorePath = DefaultLocalDbLocation
@@ -167,16 +177,6 @@ func OpenDB(project string, options ...func(*DB) error) (*DB, func() error, erro
 		return nil, nil, errors.Wrap(err, ErrNewDb.Error())
 	}
 	starkDB.keystore = ldb
-
-	// get some context
-	starkDB.ctx, starkDB.ctxCancel = context.WithCancel(context.Background())
-
-	// setup the IPFS Core API
-	starkDB.ipfsCoreAPI, starkDB.ipfsNode, err = setupIPFS(starkDB.ctx, starkDB.ephemeral)
-	if err != nil {
-		starkDB.teardown()
-		return nil, nil, errors.Wrap(err, ErrNewDb.Error())
-	}
 
 	// return the teardown so we can ensure it happens
 	return starkDB, starkDB.teardown, nil
@@ -271,11 +271,17 @@ func (DB *DB) setEncryption(val bool) error {
 // teardown will close down all the open guff nicely
 func (DB *DB) teardown() error {
 
-	// TODO: work on this some more once the API has taken shape
+	// close the local keystore
+	if err := DB.keystore.Close(); err != nil {
+		return err
+	}
+
+	// close the IPFS node down
+	if err := DB.ipfsNode.Close(); err != nil {
+		return err
+	}
 
 	// end the context
 	DB.ctxCancel()
-
-	// close the local db and return any error
-	return DB.keystore.Close()
+	return nil
 }
