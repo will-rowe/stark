@@ -41,36 +41,36 @@
 package main
 
 import (
-  "github.com/will-rowe/stark
+  "github.com/will-rowe/stark"
 )
 
 func main() {
 
-	// init a starkDB
-	db, dbCloser, err := stark.OpenDB("my project", stark.SetLocalStorageDir("/tmp/starkdb"))
-	if err != nil {
-		panic(err)
+  // init a starkDB
+  db, dbCloser, err := stark.OpenDB("my project", stark.SetLocalStorageDir("/tmp/starkdb"))
+  if err != nil {
+    panic(err)
   }
 
   // defer the database closer
   defer dbCloser()
 
   // create a record
-	record, err := stark.NewRecord(SetAlias("my first sample"))
-	if err != nil {
-		panic(err)
-	}
+  record, err := stark.NewRecord(SetAlias("my first sample"))
+  if err != nil {
+    panic(err)
+  }
 
-	// add record to starkDB
+  // add record to starkDB
   err := db.Set("lookupKey", record)
-	if err != nil {
-		panic(err)
+  if err != nil {
+    panic(err)
   }
 
   // retrieve record from the starkDB
   retrievedSample, err := db.Get("lookupKey")
   if err != nil {
-		panic(err)
+    panic(err)
   }
   fmt.Println(retrievedSample.GetAlias())
 }
