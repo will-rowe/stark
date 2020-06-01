@@ -3,7 +3,7 @@
   <h3>a Command Line Utility and IPFS-backed database for recording and distributing sequencing data</h3>
   <hr>
   <a href="https://travis-ci.org/will-rowe/stark"><img src="https://travis-ci.org/will-rowe/stark.svg?branch=master" alt="travis"></a>
-  <a href="https://godoc.org/github.com/will-rowe/stark/starkdb"><img src="https://godoc.org/github.com/will-rowe/stark?status.svg" alt="GoDoc"></a>
+  <a href="https://godoc.org/github.com/will-rowe/stark"><img src="https://godoc.org/github.com/will-rowe/stark?status.svg" alt="GoDoc"></a>
   <a href="https://goreportcard.com/report/github.com/will-rowe/stark"><img src="https://goreportcard.com/badge/github.com/will-rowe/stark" alt="goreportcard"></a>
   <a href="https://codecov.io/gh/will-rowe/stark"><img src="https://codecov.io/gh/will-rowe/stark/branch/master/graph/badge.svg" alt="codecov"></a>
 </div>
@@ -58,13 +58,13 @@ package main
 import (
 	"fmt"
 
-	sdb "github.com/will-rowe/stark/starkdb"
+	"github.com/will-rowe/stark"
 )
 
 func main() {
 
 	// init a starkDB
-	db, dbCloser, err := sdb.OpenDB("my project", sdb.SetLocalStorageDir("/tmp/starkdb"), sdb.SetEphemeral(false))
+	db, dbCloser, err := stark.OpenDB(stark.SetProject("my project"), stark.SetLocalStorageDir("/tmp/starkdb"), stark.WithPinning())
 	if err != nil {
 		panic(err)
 	}
@@ -73,7 +73,7 @@ func main() {
 	defer dbCloser()
 
 	// create a record
-	record, err := sdb.NewRecord(sdb.SetAlias("my first sample"))
+	record, err := stark.NewRecord(stark.SetAlias("my first sample"))
 	if err != nil {
 		panic(err)
 	}

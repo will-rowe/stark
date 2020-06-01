@@ -8,13 +8,13 @@ package main
 import (
 	"fmt"
 
-	sdb "github.com/will-rowe/stark/starkdb"
+	"github.com/will-rowe/stark"
 )
 
 func main() {
 
 	// init a starkDB
-	db, dbCloser, err := sdb.OpenDB("my project", sdb.SetLocalStorageDir("/tmp/starkdb"), sdb.SetEphemeral(false))
+	db, dbCloser, err := stark.OpenDB(stark.SetProject("my project"), stark.SetLocalStorageDir("/tmp/starkdb"), stark.WithPinning())
 	if err != nil {
 		panic(err)
 	}
@@ -23,7 +23,7 @@ func main() {
 	defer dbCloser()
 
 	// create a record
-	record, err := sdb.NewRecord(sdb.SetAlias("my first sample"))
+	record, err := stark.NewRecord(stark.SetAlias("my first sample"))
 	if err != nil {
 		panic(err)
 	}

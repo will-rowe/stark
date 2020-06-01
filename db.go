@@ -5,12 +5,12 @@ import (
 	"context"
 	"encoding/hex"
 	"fmt"
+	"math"
 	"os"
 	"strings"
 	"sync"
 
 	"github.com/dgraph-io/badger"
-	"github.com/ipfs/go-ipfs/core"
 	icore "github.com/ipfs/interface-go-ipfs-core"
 	"github.com/pkg/errors"
 )
@@ -18,11 +18,24 @@ import (
 // Defaults
 const (
 
+	// DefaultProject is the default project name used if none provided to the OpenDB function.
+	DefaultProject = "starkdb-default-project"
+
 	// DefaultLocalDbLocation is used if the user does not provide one.
 	DefaultLocalDbLocation = "/tmp/starkDB/"
 
 	// DefaultStarkEnvVariable is the env variable starkdb looks for when told to use encryption.
 	DefaultStarkEnvVariable = "STARK_DB_ENCRYPTION_KEY"
+
+	// Ienc is the format in which the data will be added to the IPFS DAG.
+	Ienc = "json"
+
+	// Format is the format of the input data.
+	Format = "cbor"
+
+	// MhType is the hash to use for DAG put operations.
+	MhType = uint64(math.MaxUint64) // use default hash (sha256 for cbor, sha1 for git..)
+
 )
 
 // Errors
@@ -59,48 +72,64 @@ var (
 	ErrNoPeerID = fmt.Errorf("no PeerID listed for the current IPFS node")
 )
 
-// SetLocalStorageDir is an option setter for the OpenDB constructor that sets the path to the local keystore.
-func SetLocalStorageDir(path string) func(*DB) error {
+// DbOption is a wrapper struct used to pass functional
+// options to the starkDB constructor.
+type DbOption func(DB *DB) error
+
+// SetProject is an option setter for the OpenDB
+// constructor that sets the project for the
+// database.
+func SetProject(project string) DbOption {
+	return func(DB *DB) error {
+		return DB.setProject(project)
+	}
+}
+
+// SetLocalStorageDir is an option setter for the OpenDB
+// constructor that sets the path to the local keystore.
+func SetLocalStorageDir(path string) DbOption {
 	return func(DB *DB) error {
 		return DB.setLocalStorage(path)
 	}
 }
 
-// SetEncryption is an option setter for the OpenDB constructor that tells starkdb to make encrypted writes to IPFS using the private key in STARK_DB_ENCRYPTION_KEY env variable.
-func SetEncryption(val bool) func(*DB) error {
+// SetEncryption is an option setter for the OpenDB constructor
+// that tells starkdb to make encrypted writes to IPFS using the
+// private key in STARK_DB_ENCRYPTION_KEY env variable.
+func SetEncryption(val bool) DbOption {
 	return func(DB *DB) error {
 		return DB.setEncryption(val)
 	}
 }
 
-// SetEphemeral is an option setter for the OpenDB constructor that sets the underlying IPFS node to be emphermeral.
-func SetEphemeral(val bool) func(*DB) error {
+// WithPinning is an option setter that specifies the IPFS
+// node pin entries.
+//
+// Note: If not provided to the constructor, the node will
+// not pin entries.
+func WithPinning() DbOption {
 	return func(DB *DB) error {
-		return DB.setEphemeral(val)
+		return DB.setPinning(true)
 	}
 }
 
-// SetPin is an option setter for the OpenDB constructor that sets the underlying IPFS node to pin entries.
-func SetPin(val bool) func(*DB) error {
+// WithAnnounce is an option setter for the OpenDB constructor
+// that sets the database to announce new records via PubSub.
+func WithAnnounce() DbOption {
 	return func(DB *DB) error {
-		return DB.setPinning(val)
-	}
-}
-
-// SetAnnounce is an option setter for the OpenDB constructor that sets the database to announce new records via PubSub.
-func SetAnnounce(val bool) func(*DB) error {
-	return func(DB *DB) error {
-		return DB.setAnnounce(val)
+		return DB.setAnnounce(true)
 	}
 }
 
 // DB is the starkDB database.
 type DB struct {
+	sync.Mutex // protects access to the bound IPFS node and badger db
+	ctx        context.Context
+	ctxCancel  context.CancelFunc
 
 	// user-defined settings
 	project      string // the project which the database instance is managing
 	keystorePath string // local keystore location
-	ephemeral    bool   // if true, the IPFS node will be emphemeral
 	pinning      bool   // if true, IPFS IO will be done with pinning
 	announce     bool   // if true, new records added to the IPFS will be broadcast on the pubsub topic for this project
 	allowNetwork bool   // controls the IPFS node's network connection // TODO: not yet implemented (thinking of local dbs)
@@ -110,39 +139,31 @@ type DB struct {
 	keystore *badger.DB // local keystore to relate record UUIDs to IPFS CIDs
 
 	// IPFS
-	ipfsCoreAPI icore.CoreAPI  // the IPFS interface
-	ipfsNode    *core.IpfsNode // a pointer to the underlying bound IPFS node
+	ipfsClient *client // wraps the IPFS core API
 
 	// PubSub
 	pubsubSub      icore.PubSubSubscription // the pubsub subscription
 	pubsubMessages chan icore.PubSubMessage // used to receive pubsub messages
 	pubsubStop     chan struct{}            // used to signal the pubsub goroutine to end
 	pubsubStopped  chan struct{}            // used to signal the pubsub goroutine has ended
-
-	// helpers
-	ctx        context.Context    // context for IPFS calls etc.
-	ctxCancel  context.CancelFunc // cancel function for the context
-	sync.Mutex                    // protects access to the bound IPFS node
 }
 
 // OpenDB opens a new instance of starkDB.
 // It returns the initialised database, a teardown function and any error encountered.
-func OpenDB(project string, options ...func(*DB) error) (*DB, func() error, error) {
-	if len(project) == 0 {
-		return nil, nil, ErrNoProject
-	}
+func OpenDB(options ...DbOption) (*DB, func() error, error) {
 
-	// sanitize the project name
-	project = strings.ReplaceAll(project, " ", "_")
+	// context for the lifetime of the DB
+	ctx, cancel := context.WithCancel(context.Background())
 
 	// create the uninitialised DB
 	starkDB := &DB{
-		project: project,
+		ctx:       ctx,
+		ctxCancel: cancel,
+		project:   DefaultProject,
 
 		// defaults
-		ephemeral: false,
-		pinning:   true,
-		announce:  false,
+		pinning:  true,
+		announce: false,
 
 		// add in the currently unsettable options
 		allowNetwork: true,
@@ -156,15 +177,12 @@ func OpenDB(project string, options ...func(*DB) error) (*DB, func() error, erro
 		}
 	}
 
-	// get some context
-	starkDB.ctx, starkDB.ctxCancel = context.WithCancel(context.Background())
-
-	// setup the IPFS Core API
-	iapi, inode, err := setupIPFS(starkDB.ctx, starkDB.ephemeral)
+	// init the IPFS core API
+	client, err := newIPFSclient(ctx)
 	if err != nil {
-		return nil, nil, errors.Wrap(err, ErrNewDb.Error())
+		return nil, nil, err
 	}
-	starkDB.ipfsCoreAPI, starkDB.ipfsNode = iapi, inode
+	starkDB.ipfsClient = client
 
 	// setup the local keystore
 	if len(starkDB.keystorePath) == 0 {
@@ -184,7 +202,7 @@ func OpenDB(project string, options ...func(*DB) error) (*DB, func() error, erro
 
 /////////////////////////
 // Exported methods:
-
+/*
 // IsOnline returns true if the starkDB is in online mode and the IPFS daemon is reachable.
 func (DB *DB) IsOnline() bool {
 	DB.Lock()
@@ -203,11 +221,28 @@ func (DB *DB) GetNodeIdentity() (string, error) {
 	}
 	return DB.ipfsNode.Identity.Pretty(), nil
 }
+*/
 
 /////////////////////////
 // Unexported methods:
 
-// setLocalStorage will check if a directory exists, try and make it if not, then set the field on IPFSnode
+// setProject will set the database project.
+func (DB *DB) setProject(project string) error {
+
+	// sanitize the project name
+	project = strings.ReplaceAll(project, " ", "_")
+	if len(project) == 0 {
+		return ErrNoProject
+	}
+
+	// set it
+	DB.project = project
+	return nil
+}
+
+// setLocalStorage will check if a directory exists,
+// try and make it if not, then set the field on
+// IPFSnode.
 func (DB *DB) setLocalStorage(path string) error {
 	if len(path) == 0 {
 		return fmt.Errorf("no path provided for local database")
@@ -225,25 +260,22 @@ func (DB *DB) setLocalStorage(path string) error {
 	return nil
 }
 
-// setEphemeral sets the underlying IPFS node to be emphermeral.
-func (DB *DB) setEphemeral(ephemeral bool) error {
-	DB.ephemeral = ephemeral
-	return nil
-}
-
-// setPinning sets the underlying IPFS node to pin entries.
+// setPinning sets the underlying IPFS node to
+// pin entries.
 func (DB *DB) setPinning(pin bool) error {
 	DB.pinning = pin
 	return nil
 }
 
-// setAnnounce sets the database to announce new records via PubSub.
+// setAnnounce sets the database to announce
+// new records via PubSub.
 func (DB *DB) setAnnounce(announce bool) error {
 	DB.announce = announce
 	return nil
 }
 
-// setEncryption tells starkdb to make encrypted writes.
+// setEncryption tells starkdb to make encrypted
+// writes.
 func (DB *DB) setEncryption(val bool) error {
 
 	// check for the env variable
@@ -268,7 +300,8 @@ func (DB *DB) setEncryption(val bool) error {
 	return nil
 }
 
-// teardown will close down all the open guff nicely
+// teardown will close down all the open guff
+// nicely.
 func (DB *DB) teardown() error {
 
 	// close the local keystore
@@ -276,12 +309,17 @@ func (DB *DB) teardown() error {
 		return err
 	}
 
-	// close the IPFS node down
-	if err := DB.ipfsNode.Close(); err != nil {
+	// cancel the db context
+	DB.ctxCancel()
+
+	// TODO: close the IPFS node down
+
+	// close any currently running plugins
+	if err := DB.ipfsClient.endSession(); err != nil {
 		return err
 	}
 
-	// end the context
-	DB.ctxCancel()
+	fmt.Println("ended session")
+
 	return nil
 }

@@ -26,9 +26,9 @@ endif
 $(PROTOC_GEN_GO):
 	go get -u github.com/golang/protobuf/protoc-gen-go
 
-../src/stark.pb.go: protobuf/stark.proto | $(PROTOC_GEN_GO) $(PROTOC)
-	protoc -I=protobuf/ --go_out=../src protobuf/stark.proto
+../stark.pb.go: protobuf/stark.proto | $(PROTOC_GEN_GO) $(PROTOC)
+	protoc -I=protobuf/ --go_out=../ protobuf/stark.proto
 
 # This is a "phony" target - an alias for the above command, so "make compile"
 # still works.
-compile: ../src/stark.pb.go
+compile: ../stark.pb.go
