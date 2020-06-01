@@ -21,13 +21,13 @@ import (
 )
 
 // Set will add a Record to the starkDB, linking it with the provided key.
-func (DB *DB) Set(key string, record *Record) error {
+func (Db *Db) Set(key string, record *Record) error {
 
 	// check the local keystore to see if this key has been used before
-	if existingCID, exists := DB.keystoreGet(key); exists {
+	if existingCID, exists := Db.keystoreGet(key); exists {
 
 		// retrieve the record for this key
-		existingRecord, err := DB.Get(key)
+		existingRecord, err := Db.Get(key)
 		if err != nil {
 			return err
 		}
@@ -55,26 +55,26 @@ func (DB *DB) Set(key string, record *Record) error {
 	}
 
 	// create DAG node in IPFS for Record data
-	cid, err := DB.dagPut(jsonData)
+	cid, err := Db.dagPut(jsonData)
 	if err != nil {
 		return err
 	}
 
 	// add the returned CID to the local keystore
-	return DB.keystoreSet(key, cid)
+	return Db.keystoreSet(key, cid)
 }
 
 // Get will retrieve a Record from the starkDB using the provided key.
-func (DB *DB) Get(key string) (*Record, error) {
+func (Db *Db) Get(key string) (*Record, error) {
 
 	// check the local keystore for the provided key
-	cid, exists := DB.keystoreGet(key)
+	cid, exists := Db.keystoreGet(key)
 	if !exists {
 		return nil, fmt.Errorf("%v: %v", ErrKeyNotFound, key)
 	}
 
 	// retrieve the record data from the IPFS
-	retrievedNode, err := DB.dagGet(cid)
+	retrievedNode, err := Db.dagGet(cid)
 	if err != nil {
 		return nil, err
 	}
@@ -104,8 +104,8 @@ func (DB *DB) Get(key string) (*Record, error) {
 }
 
 // GetExplorerLink will return an IPFS explorer link for a CID in the starkdb given the provided lookup key.
-func (DB *DB) GetExplorerLink(key string) (string, error) {
-	cid, ok := DB.keystoreGet(key)
+func (Db *Db) GetExplorerLink(key string) (string, error) {
+	cid, ok := Db.keystoreGet(key)
 	if !ok {
 		return "", fmt.Errorf("could not retrieve CID from local keystore")
 	}
@@ -113,14 +113,14 @@ func (DB *DB) GetExplorerLink(key string) (string, error) {
 }
 
 // dagPut will append to an IPFS dag.
-func (DB *DB) dagPut(data []byte) (string, error) {
+func (Db *Db) dagPut(data []byte) (string, error) {
 
 	// get the node adder
-	var adder ipld.NodeAdder = DB.ipfsClient.ipfs.Dag()
-	if DB.pinning {
-		adder = DB.ipfsClient.ipfs.Dag().Pinning()
+	var adder ipld.NodeAdder = Db.ipfsClient.ipfs.Dag()
+	if Db.pinning {
+		adder = Db.ipfsClient.ipfs.Dag().Pinning()
 	}
-	b := ipld.NewBatch(DB.ctx, adder)
+	b := ipld.NewBatch(Db.ctx, adder)
 
 	//
 	file := files.NewBytesFile(data)
@@ -139,7 +139,7 @@ func (DB *DB) dagPut(data []byte) (string, error) {
 
 	//
 	for _, nd := range nds {
-		err := b.Add(DB.ctx, nd)
+		err := b.Add(Db.ctx, nd)
 		if err != nil {
 			return "", err
 		}
@@ -154,10 +154,10 @@ func (DB *DB) dagPut(data []byte) (string, error) {
 
 // dagGet will fetch a DAG node from the IPFS using the
 // provided CID.
-func (DB *DB) dagGet(queryCID string) (interface{}, error) {
+func (Db *Db) dagGet(queryCID string) (interface{}, error) {
 
 	// get the IPFS path
-	rp, err := DB.ipfsClient.ipfs.ResolvePath(DB.ctx, path.New(queryCID))
+	rp, err := Db.ipfsClient.ipfs.ResolvePath(Db.ctx, path.New(queryCID))
 	if err != nil {
 		return nil, err
 	}
@@ -167,7 +167,7 @@ func (DB *DB) dagGet(queryCID string) (interface{}, error) {
 
 	// detect what we're dealing with and check we're good before collecting the data
 	if rp.Cid().Type() == cid.DagCBOR {
-		obj, err = DB.ipfsClient.ipfs.Dag().Get(DB.ctx, rp.Cid())
+		obj, err = Db.ipfsClient.ipfs.Dag().Get(Db.ctx, rp.Cid())
 		if err != nil {
 			return nil, err
 		}
@@ -206,8 +206,8 @@ func (DB *DB) dagGet(queryCID string) (interface{}, error) {
 }
 
 // keystoreSet will add a key value pair to the local keystore.
-func (DB *DB) keystoreSet(key, value string) error {
-	txn := DB.keystore.NewTransaction(true)
+func (Db *Db) keystoreSet(key, value string) error {
+	txn := Db.keystore.NewTransaction(true)
 	defer txn.Discard()
 	err := txn.Set([]byte(key), []byte(value))
 	if err != nil {
@@ -217,8 +217,8 @@ func (DB *DB) keystoreSet(key, value string) error {
 }
 
 // keystoreGet will get a key value pair from the local keystore.
-func (DB *DB) keystoreGet(key string) (string, bool) {
-	txn := DB.keystore.NewTransaction(false)
+func (Db *Db) keystoreGet(key string) (string, bool) {
+	txn := Db.keystore.NewTransaction(false)
 	defer txn.Discard()
 	item, err := txn.Get([]byte(key))
 	if err != nil {
@@ -240,7 +240,7 @@ func (DB *DB) keystoreGet(key string) (string, bool) {
 
 // addFile will add a file (or directory) to the IPFS and return
 // the CID.
-func (DB *DB) addFile(filePath string) (string, error) {
+func (Db *Db) addFile(filePath string) (string, error) {
 
 	// convert the file to an IPFS File Node
 	ipfsFile, err := getUnixfsNode(filePath)
@@ -249,7 +249,7 @@ func (DB *DB) addFile(filePath string) (string, error) {
 	}
 
 	// access the UnixfsAPI interface for the go-ipfs node and add file to IPFS
-	cid, err := DB.ipfsClient.ipfs.Unixfs().Add(DB.ctx, ipfsFile, options.Unixfs.Pin(DB.pinning))
+	cid, err := Db.ipfsClient.ipfs.Unixfs().Add(Db.ctx, ipfsFile, options.Unixfs.Pin(Db.pinning))
 	if err != nil {
 		return "", fmt.Errorf("could not add file to IPFS: %s", err)
 	}
@@ -258,11 +258,11 @@ func (DB *DB) addFile(filePath string) (string, error) {
 
 // getFile will get a file (or directory) from the IPFS and return
 // a reader.
-func (DB *DB) getFile(cidStr string) (io.ReadCloser, error) {
+func (Db *Db) getFile(cidStr string) (io.ReadCloser, error) {
 
 	// convert the CID to an IPFS Path
 	cid := icorepath.New(cidStr)
-	rootNode, err := DB.ipfsClient.ipfs.Unixfs().Get(DB.ctx, cid)
+	rootNode, err := Db.ipfsClient.ipfs.Unixfs().Get(Db.ctx, cid)
 	if err != nil {
 		return nil, err
 	}

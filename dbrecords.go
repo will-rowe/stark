@@ -8,23 +8,23 @@ import (
 	"github.com/google/uuid"
 )
 
-// RecOption is a wrapper struct used to pass functional
+// RecordOption is a wrapper struct used to pass functional
 // options to the Record constructor.
-type RecOption func(Record *Record) error
+type RecordOption func(Record *Record) error
 
 // SetAlias is an option setter for the NewRecord constructor
 // that sets the human readable label of a Record.
-func SetAlias(alias string) RecOption {
-	return func(rec *Record) error {
-		return rec.setAlias(alias)
+func SetAlias(alias string) RecordOption {
+	return func(x *Record) error {
+		return x.setAlias(alias)
 	}
 }
 
 // SetDescription is an option setter for the NewRecord constructor
 // that sets the description of a Record.
-func SetDescription(description string) RecOption {
-	return func(rec *Record) error {
-		return rec.setDescription(description)
+func SetDescription(description string) RecordOption {
+	return func(x *Record) error {
+		return x.setDescription(description)
 	}
 }
 
@@ -38,10 +38,10 @@ func NewComment(comment, prevCID string) *RecordComment {
 }
 
 // NewRecord creates a record.
-func NewRecord(options ...RecOption) (*Record, error) {
+func NewRecord(options ...RecordOption) (*Record, error) {
 
 	// create the base record
-	rec := &Record{
+	x := &Record{
 		Uuid:            uuid.New().String(),
 		PreviousCID:     "",
 		History:         []*RecordComment{},
@@ -51,74 +51,74 @@ func NewRecord(options ...RecOption) (*Record, error) {
 	}
 
 	// start the Record history
-	rec.AddComment("record created.")
+	x.AddComment("record created.")
 
 	// add the user provided options
 	for _, option := range options {
-		err := option(rec)
+		err := option(x)
 		if err != nil {
 			return nil, err
 		}
 	}
 
-	return rec, nil
+	return x, nil
 }
 
 // AddComment adds a timestamped comment to the Record's history, along with the last known CID to enable rollbacks.
-func (rec *Record) AddComment(text string) {
-	rec.History = append(rec.History, NewComment(text, rec.PreviousCID))
+func (x *Record) AddComment(text string) {
+	x.History = append(x.History, NewComment(text, x.PreviousCID))
 	return
 }
 
 // LinkSample links a Sample to a Record.
-func (rec *Record) LinkSample(sampleUUID uuid.UUID, sampleLocation string) error {
+func (x *Record) LinkSample(sampleUUID uuid.UUID, sampleLocation string) error {
 
 	// convert the UUID to string and check if it's already linked
 	uuid := sampleUUID.String()
-	if _, exists := rec.LinkedSamples[uuid]; exists {
+	if _, exists := x.LinkedSamples[uuid]; exists {
 		return ErrLinkExists
 	}
 
 	// link it
-	rec.LinkedSamples[uuid] = sampleLocation
-	rec.AddComment(fmt.Sprintf("linked record to sample (%s)", uuid))
+	x.LinkedSamples[uuid] = sampleLocation
+	x.AddComment(fmt.Sprintf("linked record to sample (%s)", uuid))
 	return nil
 }
 
 // LinkLibrary links a Library to a Record.
-func (rec *Record) LinkLibrary(libraryUUID uuid.UUID, libraryLocation string) error {
+func (x *Record) LinkLibrary(libraryUUID uuid.UUID, libraryLocation string) error {
 
 	// convert the UUID to string and check if it's already linked
 	uuid := libraryUUID.String()
-	if _, exists := rec.LinkedLibraries[uuid]; exists {
+	if _, exists := x.LinkedLibraries[uuid]; exists {
 		return ErrLinkExists
 	}
 
 	// link it
-	rec.LinkedLibraries[uuid] = libraryLocation
-	rec.AddComment(fmt.Sprintf("linked record to library (%s)", uuid))
+	x.LinkedLibraries[uuid] = libraryLocation
+	x.AddComment(fmt.Sprintf("linked record to library (%s)", uuid))
 	return nil
 }
 
 // GetCreatedTimestamp returns the timestamp for when the record was created.
-func (rec *Record) GetCreatedTimestamp() *timestamp.Timestamp {
-	return rec.GetHistory()[0].Timestamp
+func (x *Record) GetCreatedTimestamp() *timestamp.Timestamp {
+	return x.GetHistory()[0].Timestamp
 }
 
 // GetLastUpdatedTimestamp returns the timestamp for when the record was created.
-func (rec *Record) GetLastUpdatedTimestamp() *timestamp.Timestamp {
-	histLength := len(rec.GetHistory())
-	return rec.GetHistory()[histLength-1].Timestamp
+func (x *Record) GetLastUpdatedTimestamp() *timestamp.Timestamp {
+	histLength := len(x.GetHistory())
+	return x.GetHistory()[histLength-1].Timestamp
 }
 
-func (rec *Record) setAlias(alias string) error {
-	rec.Alias = alias
-	rec.AddComment("alias updated.")
+func (x *Record) setAlias(alias string) error {
+	x.Alias = alias
+	x.AddComment("alias updated.")
 	return nil
 }
 
-func (rec *Record) setDescription(description string) error {
-	rec.Description = description
-	rec.AddComment("description updated.")
+func (x *Record) setDescription(description string) error {
+	x.Description = description
+	x.AddComment("description updated.")
 	return nil
 }
