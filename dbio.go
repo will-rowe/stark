@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
+	"os"
 	"strings"
 
 	"github.com/dgraph-io/badger"
@@ -13,7 +15,9 @@ import (
 	"github.com/ipfs/go-ipfs/core/coredag"
 	cbor "github.com/ipfs/go-ipld-cbor"
 	ipld "github.com/ipfs/go-ipld-format"
+	"github.com/ipfs/interface-go-ipfs-core/options"
 	"github.com/ipfs/interface-go-ipfs-core/path"
+	icorepath "github.com/ipfs/interface-go-ipfs-core/path"
 )
 
 // Set will add a Record to the starkDB, linking it with the provided key.
@@ -97,6 +101,15 @@ func (DB *DB) Get(key string) (*Record, error) {
 	// add the pulled CID to this record
 	record.PreviousCID = cid
 	return record, nil
+}
+
+// GetExplorerLink will return an IPFS explorer link for a CID in the starkdb given the provided lookup key.
+func (DB *DB) GetExplorerLink(key string) (string, error) {
+	cid, ok := DB.keystoreGet(key)
+	if !ok {
+		return "", fmt.Errorf("could not retrieve CID from local keystore")
+	}
+	return fmt.Sprintf("IPLD Explorer link: https://explore.ipld.io/#/explore/%s \n", cid), nil
 }
 
 // dagPut will append to an IPFS dag.
@@ -192,15 +205,6 @@ func (DB *DB) dagGet(queryCID string) (interface{}, error) {
 	return out, nil
 }
 
-// GetExplorerLink will return an IPFS explorer link for a CID in the local keystore given the provided lookup key.
-func (DB *DB) GetExplorerLink(key string) (string, error) {
-	cid, ok := DB.keystoreGet(key)
-	if !ok {
-		return "", fmt.Errorf("could not retrieve CID from local keystore")
-	}
-	return fmt.Sprintf("IPLD Explorer link: https://explore.ipld.io/#/explore/%s \n", cid), nil
-}
-
 // keystoreSet will add a key value pair to the local keystore.
 func (DB *DB) keystoreSet(key, value string) error {
 	txn := DB.keystore.NewTransaction(true)
@@ -234,11 +238,9 @@ func (DB *DB) keystoreGet(key string) (string, bool) {
 	return string(returnedValue), true
 }
 
-/*
-// AddFile will add a file (or directory) to the IPFS and return
+// addFile will add a file (or directory) to the IPFS and return
 // the CID.
-func (ipfsClient *IPFSclient) AddFile(ctx context.Context, filePath string) (string, error) {
-	ipfsClient.waitOnReady()
+func (DB *DB) addFile(filePath string) (string, error) {
 
 	// convert the file to an IPFS File Node
 	ipfsFile, err := getUnixfsNode(filePath)
@@ -247,21 +249,20 @@ func (ipfsClient *IPFSclient) AddFile(ctx context.Context, filePath string) (str
 	}
 
 	// access the UnixfsAPI interface for the go-ipfs node and add file to IPFS
-	cid, err := ipfsClient.coreAPI.Unixfs().Add(ctx, ipfsFile, options.Unixfs.Pin(ipfsClient.pinning))
+	cid, err := DB.ipfsClient.ipfs.Unixfs().Add(DB.ctx, ipfsFile, options.Unixfs.Pin(DB.pinning))
 	if err != nil {
 		return "", fmt.Errorf("could not add file to IPFS: %s", err)
 	}
 	return cid.String(), nil
 }
 
-// GetFile will get a file (or directory) from the IPFS and return
+// getFile will get a file (or directory) from the IPFS and return
 // a reader.
-func (ipfsClient *IPFSclient) GetFile(ctx context.Context, cidStr string) (io.ReadCloser, error) {
-	ipfsClient.waitOnReady()
+func (DB *DB) getFile(cidStr string) (io.ReadCloser, error) {
 
 	// convert the CID to an IPFS Path
 	cid := icorepath.New(cidStr)
-	rootNode, err := ipfsClient.coreAPI.Unixfs().Get(ctx, cid)
+	rootNode, err := DB.ipfsClient.ipfs.Unixfs().Get(DB.ctx, cid)
 	if err != nil {
 		return nil, err
 	}
@@ -271,4 +272,18 @@ func (ipfsClient *IPFSclient) GetFile(ctx context.Context, cidStr string) (io.Re
 	return file, nil
 }
 
-*/
+// getUnixfsNode takes a file/directory path and returns
+// an IPFS File Node representing the file, directory or
+// special file.
+func getUnixfsNode(path string) (files.Node, error) {
+	fileInfo, err := os.Stat(path)
+	if err != nil {
+		return nil, err
+	}
+	includeHiddenFiles := false
+	f, err := files.NewSerialFile(path, includeHiddenFiles, fileInfo)
+	if err != nil {
+		return nil, err
+	}
+	return f, nil
+}

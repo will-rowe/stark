@@ -80,6 +80,7 @@ func (client *client) endSession() error {
 	if err := client.node.Close(); err != nil {
 		return err
 	}
+	client.node.IsOnline = false
 	return nil
 }
 

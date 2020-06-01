@@ -8,6 +8,7 @@ import (
 	"os"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/dgraph-io/badger"
 	icore "github.com/ipfs/interface-go-ipfs-core"
@@ -64,6 +65,9 @@ var (
 
 	// ErrNodeOffline indicates the node is offline.
 	ErrNodeOffline = fmt.Errorf("IPFS node is offline")
+
+	// ErrNodeOnline indicates the node is online.
+	ErrNodeOnline = fmt.Errorf("IPFS node is online")
 
 	// ErrNoPeerID indicates the IPFS node has no peer ID.
 	ErrNoPeerID = fmt.Errorf("no PeerID listed for the current IPFS node")
@@ -123,9 +127,9 @@ func WithAnnounce() DbOption {
 
 // DB is the starkDB database.
 type DB struct {
-	sync.Mutex // protects access to the bound IPFS node and badger db
-	ctx        context.Context
-	ctxCancel  context.CancelFunc
+	lock      sync.Mutex // protects access to the bound IPFS node and badger db
+	ctx       context.Context
+	ctxCancel context.CancelFunc
 
 	// user-defined settings
 	project      string // the project which the database instance is managing
@@ -206,15 +210,12 @@ func OpenDB(options ...DbOption) (*DB, func() error, error) {
 	return starkDB, starkDB.teardown, nil
 }
 
-/////////////////////////
-// Exported methods:
-/*
 // IsOnline returns true if the starkDB is in online mode and the IPFS daemon is reachable.
 func (DB *DB) IsOnline() bool {
-	DB.Lock()
+	DB.lock.Lock()
 	allowNetwork := DB.allowNetwork
-	DB.Unlock()
-	return DB.ipfsNode.IsOnline && DB.ipfsNode.IsDaemon && allowNetwork
+	DB.lock.Unlock()
+	return DB.ipfsClient.node.IsOnline && allowNetwork
 }
 
 // GetNodeIdentity returns the PeerID of the underlying IPFS node for the starkDB.
@@ -222,15 +223,11 @@ func (DB *DB) GetNodeIdentity() (string, error) {
 	if !DB.IsOnline() {
 		return "", ErrNodeOffline
 	}
-	if len(DB.ipfsNode.Identity) == 0 {
+	if len(DB.ipfsClient.node.Identity) == 0 {
 		return "", ErrNoPeerID
 	}
-	return DB.ipfsNode.Identity.Pretty(), nil
+	return DB.ipfsClient.node.Identity.Pretty(), nil
 }
-*/
-
-/////////////////////////
-// Unexported methods:
 
 // setProject will set the database project.
 func (DB *DB) setProject(project string) error {
@@ -318,14 +315,16 @@ func (DB *DB) teardown() error {
 	// cancel the db context
 	DB.ctxCancel()
 
-	// TODO: close the IPFS node down
-
 	// close any currently running plugins
 	if err := DB.ipfsClient.endSession(); err != nil {
 		return err
 	}
 
-	fmt.Println("ended session")
+	time.Sleep(time.Second * 10)
 
+	// check the node is offline
+	if DB.IsOnline() {
+		return ErrNodeOnline
+	}
 	return nil
 }
