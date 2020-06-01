@@ -1,4 +1,3 @@
-// Package stark is an IPFS-backed database for recording and distributing sequencing data.
 package stark
 
 import (

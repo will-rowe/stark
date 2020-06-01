@@ -18,9 +18,7 @@
 
 ## Overview
 
-**stark** is a Command Line Utility for running and interacting with a **starkDB**.
-
-**starkdb** is a Go package for an IPFS-backed database for recording and distributing sequencing data.
+**stark** is a a Go package for an IPFS-backed database for recording and distributing sequencing data. It comes with a Command Line Utility for running and interacting with a **stark database (starkDB)**.
 
 ### The database
 
@@ -35,7 +33,7 @@
 
 ### Requirements
 
-Both the Go package and the Command Line Utility require the `go-ipfs` command line utility. See download and install instructions [here](https://docs.ipfs.io/guides/guides/install/).
+Both the Go package and the Command Line Utility require `go-ipfs`. See download and install instructions [here](https://docs.ipfs.io/guides/guides/install/).
 
 ## The Go Package
 
@@ -58,7 +56,7 @@ package main
 import (
 	"fmt"
 
-	"github.com/will-rowe/stark"
+	stark "github.com/will-rowe/stark/v1"
 )
 
 func main() {

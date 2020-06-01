@@ -1,4 +1,4 @@
-module github.com/will-rowe/stark
+module github.com/will-rowe/stark/v1
 
 go 1.14
 
@@ -22,6 +22,7 @@ require (
 	github.com/sirupsen/logrus v1.4.2
 	github.com/spf13/cobra v0.0.6
 	github.com/spf13/viper v1.6.2
+	github.com/will-rowe/stark v0.0.0-20200601113404-728ccf83d2cf
 	golang.org/x/sync v0.0.0-20190911185100-cd5d95a43a6e
 	google.golang.org/protobuf v1.23.0
 )
