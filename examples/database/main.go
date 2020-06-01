@@ -8,7 +8,7 @@ package main
 import (
 	"fmt"
 
-	stark "github.com/will-rowe/stark/v1"
+	stark "github.com/will-rowe/stark"
 )
 
 func main() {

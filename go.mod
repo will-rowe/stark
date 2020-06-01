@@ -1,4 +1,4 @@
-module github.com/will-rowe/stark/v1
+module github.com/will-rowe/stark
 
 go 1.14
 

@@ -56,7 +56,7 @@ package main
 import (
 	"fmt"
 
-	stark "github.com/will-rowe/stark/v1"
+	"github.com/will-rowe/stark"
 )
 
 func main() {

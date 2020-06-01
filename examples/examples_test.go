@@ -2,7 +2,7 @@
 package starkexample
 
 import (
-	stark "github.com/will-rowe/stark/v1"
+	stark "github.com/will-rowe/stark"
 )
 
 // ExampleOpenDB documents the usage of OpenDB.

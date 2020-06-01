@@ -4,4 +4,4 @@ distributing sequencing data.
 It uses a local badger-db key value store to track CIDs.
 
 More info is being added to docs as package develops.*/
-package stark // import "github.com/will-rowe/stark/v1"
+package stark // import "github.com/will-rowe/stark"
