@@ -118,6 +118,13 @@ func TestReopenDB(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Log(retrievedSample)
+
+	// try the explorer link
+	link, err := starkdb.GetExplorerLink(testKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Log(link)
 }
 
 // TestFileIO will check a file can be added and retrieved from the IPFS.

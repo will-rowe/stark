@@ -8,7 +8,6 @@ import (
 	"os"
 	"strings"
 	"sync"
-	"time"
 
 	"github.com/dgraph-io/badger"
 	icore "github.com/ipfs/interface-go-ipfs-core"
@@ -172,7 +171,7 @@ func OpenDB(options ...DbOption) (*DB, func() error, error) {
 		project:   DefaultProject,
 
 		// defaults
-		pinning:  true,
+		pinning:  false,
 		announce: false,
 
 		// add in the currently unsettable options
@@ -187,13 +186,6 @@ func OpenDB(options ...DbOption) (*DB, func() error, error) {
 		}
 	}
 
-	// init the IPFS core API
-	client, err := newIPFSclient(ctx)
-	if err != nil {
-		return nil, nil, err
-	}
-	starkDB.ipfsClient = client
-
 	// setup the local keystore
 	if len(starkDB.keystorePath) == 0 {
 		starkDB.keystorePath = DefaultLocalDbLocation
@@ -205,6 +197,18 @@ func OpenDB(options ...DbOption) (*DB, func() error, error) {
 		return nil, nil, errors.Wrap(err, ErrNewDb.Error())
 	}
 	starkDB.keystore = ldb
+
+	// init the IPFS client
+	client, err := newIPFSclient(ctx)
+	if err != nil {
+		return nil, nil, err
+	}
+	starkDB.ipfsClient = client
+
+	// setup the PubSub if requested
+	if starkDB.announce {
+		//todo
+	}
 
 	// return the teardown so we can ensure it happens
 	return starkDB, starkDB.teardown, nil
@@ -223,6 +227,8 @@ func (DB *DB) GetNodeIdentity() (string, error) {
 	if !DB.IsOnline() {
 		return "", ErrNodeOffline
 	}
+	DB.lock.Lock()
+	defer DB.lock.Unlock()
 	if len(DB.ipfsClient.node.Identity) == 0 {
 		return "", ErrNoPeerID
 	}
@@ -306,6 +312,8 @@ func (DB *DB) setEncryption(val bool) error {
 // teardown will close down all the open guff
 // nicely.
 func (DB *DB) teardown() error {
+	DB.lock.Lock()
+	DB.lock.Unlock()
 
 	// close the local keystore
 	if err := DB.keystore.Close(); err != nil {
@@ -319,8 +327,6 @@ func (DB *DB) teardown() error {
 	if err := DB.ipfsClient.endSession(); err != nil {
 		return err
 	}
-
-	time.Sleep(time.Second * 10)
 
 	// check the node is offline
 	if DB.IsOnline() {
