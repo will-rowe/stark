@@ -23,9 +23,9 @@ option go_package = ".;stark";
 import "google/protobuf/timestamp.proto";
 
 /*
-    Comments are used to describe message history.
+    RecordComment is used to describe message history.
 */
-message Comment {
+message RecordComment {
     google.protobuf.Timestamp timestamp = 1;        // timestamp for change
     string text = 2;                                // description of the change
     string previousCID = 3;                         // last known CID for a Record (used to rollback the Record and undo the newly commented change)
@@ -49,7 +49,7 @@ message Project {
     // reserved:
     string uuid = 1;                             // universally unique id
     string previousCID = 2;                      // the last known CID this database was pulled from
-    repeated Comment history = 3;                // describes the history of the project - can be used to get timestamps for creation and last updated
+    repeated RecordComment history = 3;                // describes the history of the project - can be used to get timestamps for creation and last updated
 
     // user updateable:
     string alias = 5;                            // the project name / human readable id
@@ -67,7 +67,7 @@ message Record {
     // reserved:
     string uuid = 1;                             // universally unique id for the record
     string previousCID = 2;                      // the last known CID this record was pulled from (set during a Get operation)
-    repeated Comment history = 3;                // describes the history of the record - can be used to get timestamps for creation and last updated
+    repeated RecordComment history = 3;                // describes the history of the record - can be used to get timestamps for creation and last updated
     bool encrypted = 4;                          // set true to indicate if fields have been encrypted
     string sequencerOutputDirCID = 5;            // the CID of the output directory (field 9)
     

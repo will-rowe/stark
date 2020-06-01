@@ -8,9 +8,29 @@ import (
 	"github.com/google/uuid"
 )
 
+// RecOption is a wrapper struct used to pass functional
+// options to the Record constructor.
+type RecOption func(Record *Record) error
+
+// SetAlias is an option setter for the NewRecord constructor
+// that sets the human readable label of a Record.
+func SetAlias(alias string) RecOption {
+	return func(rec *Record) error {
+		return rec.setAlias(alias)
+	}
+}
+
+// SetDescription is an option setter for the NewRecord constructor
+// that sets the description of a Record.
+func SetDescription(description string) RecOption {
+	return func(rec *Record) error {
+		return rec.setDescription(description)
+	}
+}
+
 // NewComment creates a comment.
-func NewComment(comment, prevCID string) *Comment {
-	return &Comment{
+func NewComment(comment, prevCID string) *RecordComment {
+	return &RecordComment{
 		Timestamp:   ptypes.TimestampNow(),
 		Text:        comment,
 		PreviousCID: prevCID,
@@ -18,13 +38,13 @@ func NewComment(comment, prevCID string) *Comment {
 }
 
 // NewRecord creates a record.
-func NewRecord(options ...func(*Record) error) (*Record, error) {
+func NewRecord(options ...RecOption) (*Record, error) {
 
 	// create the base record
 	rec := &Record{
 		Uuid:            uuid.New().String(),
 		PreviousCID:     "",
-		History:         []*Comment{},
+		History:         []*RecordComment{},
 		LinkedSamples:   make(map[string]string),
 		LinkedLibraries: make(map[string]string),
 		Barcodes:        make(map[string]int32),
@@ -43,23 +63,6 @@ func NewRecord(options ...func(*Record) error) (*Record, error) {
 
 	return rec, nil
 }
-
-// SetAlias is an option setter for the NewRecord constructor that sets the human readable label of a Record.
-func SetAlias(alias string) func(*Record) error {
-	return func(rec *Record) error {
-		return rec.setAlias(alias)
-	}
-}
-
-// SetDescription is an option setter for the NewRecord constructor that sets the description of a Record.
-func SetDescription(description string) func(*Record) error {
-	return func(rec *Record) error {
-		return rec.setDescription(description)
-	}
-}
-
-/////////////////////////
-// Exported methods:
 
 // AddComment adds a timestamped comment to the Record's history, along with the last known CID to enable rollbacks.
 func (rec *Record) AddComment(text string) {
@@ -107,9 +110,6 @@ func (rec *Record) GetLastUpdatedTimestamp() *timestamp.Timestamp {
 	histLength := len(rec.GetHistory())
 	return rec.GetHistory()[histLength-1].Timestamp
 }
-
-/////////////////////////
-// Unexported methods:
 
 func (rec *Record) setAlias(alias string) error {
 	rec.Alias = alias
