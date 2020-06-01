@@ -1,3 +1,4 @@
+// Package cmd is the command line utility for managing a stark database.
 /*
 Copyright © 2020 Will Rowe <w.p.m.rowe@gmail.com>
 
