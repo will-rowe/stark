@@ -8,13 +8,6 @@ import (
 	"github.com/google/uuid"
 )
 
-// Errors
-var (
-
-	// ErrLinkExists indicates a record is already linked to the provided UUID.
-	ErrLinkExists = fmt.Errorf("record already linked to the provided UUID")
-)
-
 // NewComment creates a comment.
 func NewComment(comment, prevCID string) *Comment {
 	return &Comment{

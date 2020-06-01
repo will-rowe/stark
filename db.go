@@ -14,7 +14,6 @@ import (
 	"github.com/pkg/errors"
 )
 
-// Defaults
 const (
 
 	// DefaultProject is the default project name used if none provided to the OpenDB function.
@@ -37,7 +36,6 @@ const (
 
 )
 
-// Errors
 var (
 
 	// ErrNoProject indicates no project name was given.
@@ -52,7 +50,7 @@ var (
 	// ErrNoEnvSet is issued when no env variable is found.
 	ErrNoEnvSet = fmt.Errorf("no private key found in %s", DefaultStarkEnvVariable)
 
-	// ErrEncyptKey is issued when the provided encyption key doesn't meet requirements.
+	// ErrEncryptKey is issued when the provided encyption key doesn't meet requirements.
 	ErrEncryptKey = fmt.Errorf("cannot load private key")
 
 	// ErrExistingRecord indicates a record with matching UUID is already in the IPFS and has a more recent update timestamp.
@@ -61,14 +59,17 @@ var (
 	// ErrKeyNotFound is issued during a Get request when the key is not present in the local keystore.
 	ErrKeyNotFound = fmt.Errorf("key not found in the database")
 
-	// ErrNodeFormat is issued when a CID points to a node with an unsupported format
+	// ErrNodeFormat is issued when a CID points to a node with an unsupported format.
 	ErrNodeFormat = fmt.Errorf("database entry points to a non-CBOR node")
 
-	// ErrNodeOffline
+	// ErrNodeOffline indicates the node is offline.
 	ErrNodeOffline = fmt.Errorf("IPFS node is offline")
 
-	// ErrNoPeerID
+	// ErrNoPeerID indicates the IPFS node has no peer ID.
 	ErrNoPeerID = fmt.Errorf("no PeerID listed for the current IPFS node")
+
+	// ErrLinkExists indicates a record is already linked to the provided UUID.
+	ErrLinkExists = fmt.Errorf("record already linked to the provided UUID")
 )
 
 // DbOption is a wrapper struct used to pass functional
@@ -148,7 +149,13 @@ type DB struct {
 }
 
 // OpenDB opens a new instance of starkDB.
-// It returns the initialised database, a teardown function and any error encountered.
+//
+// If there is an existing database in the specified local
+// storage location, which has the specified project name,
+// the DB will open that.
+//
+// It returns the initialised database, a teardown function
+// and any error encountered.
 func OpenDB(options ...DbOption) (*DB, func() error, error) {
 
 	// context for the lifetime of the DB

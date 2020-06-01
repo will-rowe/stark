@@ -1,4 +1,4 @@
-// This basic program will create a new database, add a record to it and then retrieve a copy of that record.
+// This basic example program will create a new database, add a record to it and then retrieve a copy of that record.
 //
 // You can compile and run this example with:
 //   go run main.go

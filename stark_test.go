@@ -1,5 +1,4 @@
-// Package starkexample documents examples for the stark package.
-package starkexample
+package stark
 
 import (
 	stark "github.com/will-rowe/stark"
