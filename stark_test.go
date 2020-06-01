@@ -1,14 +1,10 @@
 package stark
 
-import (
-	stark "github.com/will-rowe/stark"
-)
-
 // ExampleOpenDB documents the usage of OpenDB.
 func ExampleOpenDB() {
 
 	// init the starkDB with functional options
-	starkdb, dbCloser, err := stark.OpenDB(stark.SetProject("my project"), stark.SetLocalStorageDir("/tmp/starkdb"), stark.WithPinning())
+	starkdb, dbCloser, err := OpenDB(SetProject("my project"), SetLocalStorageDir("/tmp/starkdb"), WithPinning())
 	if err != nil {
 		panic(err)
 	}
@@ -17,7 +13,7 @@ func ExampleOpenDB() {
 	defer dbCloser()
 
 	// create a record
-	record, err := stark.NewRecord(stark.SetAlias("my first sample"))
+	record, err := NewRecord(SetAlias("my first sample"))
 	if err != nil {
 		panic(err)
 	}
