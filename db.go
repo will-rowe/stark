@@ -25,6 +25,9 @@ const (
 	// DefaultStarkEnvVariable is the env variable starkdb looks for when told to use encryption.
 	DefaultStarkEnvVariable = "STARK_DB_ENCRYPTION_KEY"
 
+	// DefaultBufferSize is the maximum number of records stored in channels.
+	DefaultBufferSize = 42
+
 	// Ienc is the format in which the data will be added to the IPFS DAG.
 	Ienc = "json"
 
@@ -70,6 +73,9 @@ var (
 
 	// ErrNoPeerID indicates the IPFS node has no peer ID.
 	ErrNoPeerID = fmt.Errorf("no PeerID listed for the current IPFS node")
+
+	// ErrNoSub indicates the IPFS node is not registered for PubSub.
+	ErrNoSub = fmt.Errorf("IPFS node has no topic registered for PubSub")
 
 	// ErrLinkExists indicates a record is already linked to the provided UUID.
 	ErrLinkExists = fmt.Errorf("record already linked to the provided UUID")
@@ -117,7 +123,12 @@ func WithPinning() DbOption {
 }
 
 // WithAnnounce is an option setter for the OpenDB constructor
-// that sets the database to announce new records via PubSub.
+// that sets the database to announce new records via PubSub
+// as they are added to the database.
+//
+// When Set is called and WithAnnounce is set, the CID of the
+// set Record is broadcast on IPFS with the database project
+// as the topic.
 func WithAnnounce() DbOption {
 	return func(Db *Db) error {
 		return Db.setAnnounce(true)
@@ -147,11 +158,12 @@ type Db struct {
 	// PubSub
 	pubsubSub      icore.PubSubSubscription // the pubsub subscription
 	pubsubMessages chan icore.PubSubMessage // used to receive pubsub messages
+	pubsubErrors   chan error               // used to receive pubsub errors
 	pubsubStop     chan struct{}            // used to signal the pubsub goroutine to end
 	pubsubStopped  chan struct{}            // used to signal the pubsub goroutine has ended
 }
 
-// OpenDB opens a new instance of starkDB.
+// OpenDB opens a new instance of a starkDB.
 //
 // If there is an existing database in the specified local
 // storage location, which has the specified project name,
@@ -205,34 +217,65 @@ func OpenDB(options ...DbOption) (*Db, func() error, error) {
 	}
 	starkDB.ipfsClient = client
 
-	// setup the PubSub if requested
-	if starkDB.announce {
-		//todo
-	}
-
 	// return the teardown so we can ensure it happens
 	return starkDB, starkDB.teardown, nil
 }
 
 // IsOnline returns true if the starkDB is in online mode and the IPFS daemon is reachable.
 func (Db *Db) IsOnline() bool {
-	Db.lock.Lock()
-	allowNetwork := Db.allowNetwork
-	Db.lock.Unlock()
-	return Db.ipfsClient.node.IsOnline && allowNetwork
+	return Db.ipfsClient.node.IsOnline && Db.allowNetwork
 }
 
 // GetNodeIdentity returns the PeerID of the underlying IPFS node for the starkDB.
 func (Db *Db) GetNodeIdentity() (string, error) {
+	Db.lock.Lock()
+	defer Db.lock.Unlock()
 	if !Db.IsOnline() {
 		return "", ErrNodeOffline
 	}
-	Db.lock.Lock()
-	defer Db.lock.Unlock()
 	if len(Db.ipfsClient.node.Identity) == 0 {
 		return "", ErrNoPeerID
 	}
 	return Db.ipfsClient.node.Identity.Pretty(), nil
+}
+
+// Listen will start a subscription and emit Records as they
+// are announced on the PubSub network and match the
+// database's topic.
+func (Db *Db) Listen(terminator chan struct{}) (chan *Record, chan error) {
+	recChan := make(chan *Record, DefaultBufferSize)
+	errChan := make(chan error)
+
+	// subscribe the database
+	if err := Db.subscribe(); err != nil {
+		errChan <- err
+	}
+
+	// process the incoming messages
+	go func() {
+		for {
+			select {
+			case msg := <-Db.pubsubMessages:
+
+				// received a msg on topic, see if it's a Record
+				fmt.Println(msg)
+				recChan <- &Record{Uuid: "placeholder"}
+
+			case err := <-Db.pubsubErrors:
+				errChan <- err
+
+			case <-terminator:
+				if err := Db.unsubscribe(); err != nil {
+					errChan <- err
+				}
+				close(recChan)
+				close(errChan)
+				return
+			}
+		}
+	}()
+
+	return recChan, errChan
 }
 
 // setProject will set the database project.
@@ -323,7 +366,7 @@ func (Db *Db) teardown() error {
 	// cancel the db context
 	Db.ctxCancel()
 
-	// close any currently running plugins
+	// close IPFS
 	if err := Db.ipfsClient.endSession(); err != nil {
 		return err
 	}

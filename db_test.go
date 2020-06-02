@@ -67,6 +67,9 @@ func TestNewDB(t *testing.T) {
 	if !starkdb.pinning {
 		t.Fatal("IPFS node was told to pin but is not set for pinning")
 	}
+	if starkdb.announce {
+		t.Fatal("starkdb is announcing but was not told to")
+	}
 
 	// create a record
 	testRecord, err := NewRecord(SetAlias(testAlias))
@@ -160,6 +163,58 @@ func TestFileIO(t *testing.T) {
 	}
 	if string(retrievedFile) != string(origFile) {
 		t.Fatalf("retrieved file does not match original: %v vs %v", string(retrievedFile), string(origFile))
+	}
+}
+
+// TestPubSub will check registering, announcing and listening.
+func TestPubSub(t *testing.T) {
+	starkdb, teardown, err := OpenDB(SetProject(testProject), SetLocalStorageDir(tmpDB), WithPinning(), WithAnnounce())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer teardown()
+	if !starkdb.announce {
+		t.Fatal("db has no announce flag set")
+	}
+
+	// use a go routine to setup a Listener
+	terminator := make(chan struct{})
+	testErrs := make(chan error)
+	receivedRecord := false
+	go func() {
+		recs, errs := starkdb.Listen(terminator)
+		select {
+		case rec := <-recs:
+			t.Log("received record via PubSub: ", rec)
+			receivedRecord = true
+			break
+		case err := <-errs:
+			testErrs <- err
+			break
+		}
+		close(terminator)
+	}()
+
+	// create a record
+	testRecord, err := NewRecord(SetAlias(testAlias))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// add record to starkdb and announce it
+	if err := starkdb.Set(testKey, testRecord); err != nil {
+		t.Fatal(err)
+	}
+
+	// wait to receive the record over PubSub
+	select {
+	default:
+		<-terminator
+	case err := <-testErrs:
+		t.Fatal(err)
+	}
+	if !receivedRecord {
+		t.Fatal("did not receive record via PubSub")
 	}
 }
 

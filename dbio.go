@@ -21,6 +21,8 @@ import (
 )
 
 // Set will add a Record to the starkDB, linking it with the provided key.
+// Set adds a comment to the Record's history before adding it to the
+// IPFS.
 func (Db *Db) Set(key string, record *Record) error {
 
 	// check the local keystore to see if this key has been used before
@@ -58,6 +60,13 @@ func (Db *Db) Set(key string, record *Record) error {
 	cid, err := Db.dagPut(jsonData)
 	if err != nil {
 		return err
+	}
+
+	// if announcing, do it now
+	if Db.announce {
+		if err := Db.publishAnnouncement([]byte(cid)); err != nil {
+			return err
+		}
 	}
 
 	// add the returned CID to the local keystore
