@@ -62,6 +62,9 @@ var (
 	// ErrKeyNotFound is issued during a Get request when the key is not present in the local keystore.
 	ErrKeyNotFound = fmt.Errorf("key not found in the database")
 
+	// ErrNoCID indicates no CID was provided.
+	ErrNoCID = fmt.Errorf("no CID provided for the Get/Set operation")
+
 	// ErrNodeFormat is issued when a CID points to a node with an unsupported format.
 	ErrNodeFormat = fmt.Errorf("database entry points to a non-CBOR node")
 
@@ -257,9 +260,25 @@ func (Db *Db) Listen(terminator chan struct{}) (chan *Record, chan error) {
 			select {
 			case msg := <-Db.pubsubMessages:
 
-				// received a msg on topic, see if it's a Record
-				fmt.Println(msg)
-				recChan <- &Record{Uuid: "placeholder"}
+				// TODO: check sender peerID
+				//msg.From()
+
+				// get the CID
+				cid := string(msg.Data())
+				fmt.Println(cid)
+
+				// collect the Record from IPFS
+				collectedRecord, err := Db.GetRecordFromCID(cid)
+				if err != nil {
+					errChan <- err
+				} else {
+
+					// add a comment to say this Record was from PubSub
+					collectedRecord.AddComment(fmt.Sprintf("collected from %s via pubsub.", msg.From()))
+
+					// send the record on to the caller
+					recChan <- collectedRecord
+				}
 
 			case err := <-Db.pubsubErrors:
 				errChan <- err
@@ -274,7 +293,6 @@ func (Db *Db) Listen(terminator chan struct{}) (chan *Record, chan error) {
 			}
 		}
 	}()
-
 	return recChan, errChan
 }
 

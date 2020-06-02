@@ -82,16 +82,27 @@ func (Db *Db) Get(key string) (*Record, error) {
 		return nil, fmt.Errorf("%v: %v", ErrKeyNotFound, key)
 	}
 
+	// use the helper method to retrieve the Record
+	return Db.GetRecordFromCID(cid)
+}
+
+// GetRecordFromCID is a helper method that collects a Record from
+// the IPFS using its CID string.
+func (Db *Db) GetRecordFromCID(cid string) (*Record, error) {
+	if len(cid) == 0 {
+		return nil, ErrNoCID
+	}
+
 	// retrieve the record data from the IPFS
 	retrievedNode, err := Db.dagGet(cid)
 	if err != nil {
 		return nil, err
 	}
 
-	// double check it's CBOR (dagGet has already done this though)
+	// double check it's CBOR
 	cborNode, isCborNode := retrievedNode.(*cbor.Node)
 	if !isCborNode {
-		return nil, fmt.Errorf("%v: %v", ErrNodeFormat, key)
+		return nil, fmt.Errorf("%v: %v", ErrNodeFormat, cid)
 	}
 
 	// get JSON data from node
@@ -112,7 +123,8 @@ func (Db *Db) Get(key string) (*Record, error) {
 	return record, nil
 }
 
-// GetExplorerLink will return an IPFS explorer link for a CID in the starkdb given the provided lookup key.
+// GetExplorerLink will return an IPFS explorer link for
+// a CID in the starkdb given the provided lookup key.
 func (Db *Db) GetExplorerLink(key string) (string, error) {
 	cid, ok := Db.keystoreGet(key)
 	if !ok {
