@@ -1,11 +1,42 @@
 package stark
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
+
+// dbMetadata is used to dump database metadata to
+// JSON.
+type dbMetadata struct {
+	Project      string `json:"project"`
+	KeystorePath string `json:"keystore"`
+	Pinning      bool   `json:"pinning"`
+	Announcing   bool   `json:"announcing"`
+}
+
+// MarshalJSON is used to satisify the JSON Marshaler
+// interface for the Db but restricts data to that
+// specified by the dbMetadata struct.
+func (Db *Db) MarshalJSON() ([]byte, error) {
+	return json.Marshal(dbMetadata{
+		Db.project,
+		Db.keystorePath,
+		Db.pinning,
+		Db.announcing,
+	})
+}
+
+// DumpMetadata returns a JSON string of starkDB metadata.
+func (Db *Db) DumpMetadata() (string, error) {
+	b, err := json.MarshalIndent(Db, "", "    ")
+	if err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("%s\n", string(b)), nil
+}
 
 // IsOnline returns true if the starkDB is in online mode
 // and the IPFS daemon is reachable.
