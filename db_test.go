@@ -76,7 +76,7 @@ func TestNewDB(t *testing.T) {
 	if !starkdb.pinning {
 		t.Fatal("IPFS node was told to pin but is not set for pinning")
 	}
-	if starkdb.announce {
+	if starkdb.announcing {
 		t.Fatal("starkdb is announcing but was not told to")
 	}
 
@@ -107,6 +107,13 @@ func TestNewDB(t *testing.T) {
 	if err := starkdb.Set(testKey, testRecord); err == nil {
 		t.Fatal("duplicate sample was added")
 	}
+
+	// test JSON dump of metadata
+	jsonDump, err := starkdb.DumpMetadata()
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Log(jsonDump)
 
 	// test the db teardown
 	if err := teardown(); err != nil {
@@ -176,13 +183,13 @@ func TestFileIO(t *testing.T) {
 
 // TestPubSub will check registering, announcing and listening.
 func TestPubSub(t *testing.T) {
-	starkdb, teardown, err := OpenDB(SetProject(testProject), SetLocalStorageDir(tmpDir), WithPinning(), WithAnnounce())
+	starkdb, teardown, err := OpenDB(SetProject(testProject), SetLocalStorageDir(tmpDir), WithPinning(), WithAnnouncing())
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer teardown()
-	if !starkdb.announce {
-		t.Fatal("db has no announce flag set")
+	if !starkdb.announcing {
+		t.Fatal("db has no announcing flag set")
 	}
 
 	// use a go routine to setup a Listener
@@ -209,7 +216,7 @@ func TestPubSub(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// add record to starkdb and announce it
+	// add record to starkdb and announcing it
 	if err := starkdb.Set(testKey, testRecord); err != nil {
 		t.Fatal(err)
 	}
@@ -230,7 +237,7 @@ func TestPubSub(t *testing.T) {
 func TestSnapshot(t *testing.T) {
 
 	// open the test database
-	starkdb, teardown, err := OpenDB(SetProject(testProject), SetLocalStorageDir(tmpDir), WithPinning(), WithAnnounce())
+	starkdb, teardown, err := OpenDB(SetProject(testProject), SetLocalStorageDir(tmpDir), WithPinning(), WithAnnouncing())
 	if err != nil {
 		t.Fatal(err)
 	}

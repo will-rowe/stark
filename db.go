@@ -169,16 +169,16 @@ func WithPinning() DbOption {
 	}
 }
 
-// WithAnnounce is an option setter for the OpenDB constructor
-// that sets the database to announce new records via PubSub
+// WithAnnouncing is an option setter for the OpenDB constructor
+// that sets the database to announcing new records via PubSub
 // as they are added to the database.
 //
-// When Set is called and WithAnnounce is set, the CID of the
+// When Set is called and WithAnnouncing is set, the CID of the
 // set Record is broadcast on IPFS with the database project
 // as the topic.
-func WithAnnounce() DbOption {
+func WithAnnouncing() DbOption {
 	return func(Db *Db) error {
-		return Db.setAnnounce(true)
+		return Db.setAnnouncing(true)
 	}
 }
 
@@ -205,7 +205,7 @@ type Db struct {
 	bootstrappers []ma.Multiaddr // list of addresses to use for IPFS peer discovery
 	snapshotCID   string         // the optional snapshot CID provided during database opening
 	pinning       bool           // if true, IPFS IO will be done with pinning
-	announce      bool           // if true, new records added to the IPFS will be broadcast on the pubsub topic for this project
+	announcing    bool           // if true, new records added to the IPFS will be broadcast on the pubsub topic for this project
 
 	// not yet implemented:
 	allowNetwork bool   // controls the IPFS node's network connection // TODO: not yet implemented (thinking of local dbs)
@@ -248,7 +248,7 @@ func OpenDB(options ...DbOption) (*Db, func() error, error) {
 		keystorePath: DefaultLocalDbLocation,
 		snapshotCID:  "",
 		pinning:      false,
-		announce:     false,
+		announcing:   false,
 		allowNetwork: true, // currently un-implemented
 	}
 
@@ -301,18 +301,6 @@ func OpenDB(options ...DbOption) (*Db, func() error, error) {
 
 	// return the teardown so we can ensure it happens
 	return starkDB, starkDB.teardown, nil
-}
-
-// Snapshot copies the current database to the IPFS and
-// returns the CID needed for retrieval/sharing.
-func (Db *Db) Snapshot() (string, error) {
-	Db.lock.Lock()
-	defer Db.lock.Unlock()
-	cid, err := Db.addFile(Db.keystorePath)
-	if err != nil {
-		return "", err
-	}
-	return cid, nil
 }
 
 // Listen will start a subscription and emit Records as they
@@ -453,10 +441,10 @@ func (Db *Db) setPinning(pin bool) error {
 	return nil
 }
 
-// setAnnounce sets the database to announce
+// setAnnouncing sets the database to announcing
 // new records via PubSub.
-func (Db *Db) setAnnounce(announce bool) error {
-	Db.announce = announce
+func (Db *Db) setAnnouncing(announcing bool) error {
+	Db.announcing = announcing
 	return nil
 }
 

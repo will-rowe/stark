@@ -62,7 +62,7 @@ func (Db *Db) Set(key string, record *Record) error {
 	}
 
 	// if announcing, do it now
-	if Db.announce {
+	if Db.announcing {
 		if err := Db.publishAnnouncement([]byte(cid)); err != nil {
 			return err
 		}
@@ -130,6 +130,18 @@ func (Db *Db) GetExplorerLink(key string) (string, error) {
 		return "", fmt.Errorf("could not retrieve CID from local keystore")
 	}
 	return fmt.Sprintf("IPLD Explorer link: https://explore.ipld.io/#/explore/%s \n", cid), nil
+}
+
+// Snapshot copies the current database to the IPFS and
+// returns the CID needed for retrieval/sharing.
+func (Db *Db) Snapshot() (string, error) {
+	Db.lock.Lock()
+	defer Db.lock.Unlock()
+	cid, err := Db.addFile(Db.keystorePath)
+	if err != nil {
+		return "", err
+	}
+	return cid, nil
 }
 
 // dagPut will append to an IPFS dag.
