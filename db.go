@@ -313,6 +313,11 @@ func OpenDB(options ...DbOption) (*Db, func() error, error) {
 // are announced on the PubSub network and match the
 // database's topic.
 func (Db *Db) Listen(terminator chan struct{}) (chan *Record, chan error) {
+
+	// cidTracker skips over duplicate CIDs
+	cidTracker := make(map[string]struct{})
+
+	// channels used to send Records and errors back to the caller
 	recChan := make(chan *Record, DefaultBufferSize)
 	errChan := make(chan error)
 
@@ -332,7 +337,10 @@ func (Db *Db) Listen(terminator chan struct{}) (chan *Record, chan error) {
 
 				// get the CID
 				cid := string(msg.Data())
-				fmt.Println(cid)
+				if _, ok := cidTracker[cid]; ok {
+					continue
+				}
+				cidTracker[cid] = struct{}{}
 
 				// collect the Record from IPFS
 				collectedRecord, err := Db.GetRecordFromCID(cid)
