@@ -137,6 +137,9 @@ func (Db *Db) GetExplorerLink(key string) (string, error) {
 func (Db *Db) Snapshot() (string, error) {
 	Db.lock.Lock()
 	defer Db.lock.Unlock()
+	if err := Db.keystore.Sync(); err != nil {
+		return "", err
+	}
 	cid, err := Db.addFile(Db.keystorePath)
 	if err != nil {
 		return "", err
