@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"io"
 	"os"
 	"strings"
 
@@ -277,20 +276,23 @@ func (Db *Db) addFile(filePath string) (string, error) {
 	return cid.String(), nil
 }
 
-// getFile will get a file (or directory) from the IPFS and return
-// a reader.
-func (Db *Db) getFile(cidStr string) (io.ReadCloser, error) {
+// getFile will get a file (or directory) from the IPFS and write it
+// to the supplied outputPath.
+func (Db *Db) getFile(cidStr, outputPath string) error {
 
 	// convert the CID to an IPFS Path
 	cid := icorepath.New(cidStr)
 	rootNode, err := Db.ipfsClient.ipfs.Unixfs().Get(Db.ctx, cid)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
-	// return a reader starting from the root node
-	file := files.ToFile(rootNode)
-	return file, nil
+	// write to local filesystem
+	err = files.WriteTo(rootNode, outputPath)
+	if err != nil {
+		return (fmt.Errorf("could not write out the fetched CID: %s", err))
+	}
+	return nil
 }
 
 // getUnixfsNode takes a file/directory path and returns

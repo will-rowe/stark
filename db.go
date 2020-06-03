@@ -63,7 +63,7 @@ var (
 	ErrKeyNotFound = fmt.Errorf("key not found in the database")
 
 	// ErrNoCID indicates no CID was provided.
-	ErrNoCID = fmt.Errorf("no CID provided for the Get/Set operation")
+	ErrNoCID = fmt.Errorf("no CID was provided")
 
 	// ErrNodeFormat is issued when a CID points to a node with an unsupported format.
 	ErrNodeFormat = fmt.Errorf("database entry points to a non-CBOR node")
@@ -99,6 +99,12 @@ func SetProject(project string) DbOption {
 
 // SetLocalStorageDir is an option setter for the OpenDB
 // constructor that sets the path to the local keystore.
+// It will create the director(y/ies) if not found.
+// If not provided, a default path will be used in /tmp
+//
+// Note: stark will create a project directory in this
+// location. This means the same local storage directory
+// can be provided to multiple starkDBs.
 func SetLocalStorageDir(path string) DbOption {
 	return func(Db *Db) error {
 		return Db.setLocalStorage(path)
@@ -138,6 +144,17 @@ func WithAnnounce() DbOption {
 	}
 }
 
+// WithSnapshot is an option setter that opens a database
+// and then pulls in an existing database via a snapshot.
+//
+// Note: If opening an existing datbase, this will be
+// erased in place of the snapshotted database.
+func WithSnapshot(snapshotCID string) DbOption {
+	return func(Db *Db) error {
+		return Db.setSnapshotCID(snapshotCID)
+	}
+}
+
 // Db is the starkDB database.
 type Db struct {
 	lock      sync.Mutex // protects access to the bound IPFS node and badger db
@@ -147,8 +164,11 @@ type Db struct {
 	// user-defined settings
 	project      string // the project which the database instance is managing
 	keystorePath string // local keystore location
+	snapshotCID  string // the optional snapshot CID provided during database opening
 	pinning      bool   // if true, IPFS IO will be done with pinning
 	announce     bool   // if true, new records added to the IPFS will be broadcast on the pubsub topic for this project
+
+	// not yet implemented:
 	allowNetwork bool   // controls the IPFS node's network connection // TODO: not yet implemented (thinking of local dbs)
 	privateKey   []byte // private key for encrypted DB instances // TODO: not yet implemented (thinking of encrypted dbs)
 
@@ -183,14 +203,14 @@ func OpenDB(options ...DbOption) (*Db, func() error, error) {
 	starkDB := &Db{
 		ctx:       ctx,
 		ctxCancel: cancel,
-		project:   DefaultProject,
 
 		// defaults
-		pinning:  false,
-		announce: false,
-
-		// add in the currently unsettable options
-		allowNetwork: true,
+		project:      DefaultProject,
+		keystorePath: DefaultLocalDbLocation,
+		snapshotCID:  "",
+		pinning:      false,
+		announce:     false,
+		allowNetwork: true, // currently un-implemented
 	}
 
 	// add the provided options
@@ -201,17 +221,8 @@ func OpenDB(options ...DbOption) (*Db, func() error, error) {
 		}
 	}
 
-	// setup the local keystore
-	if len(starkDB.keystorePath) == 0 {
-		starkDB.keystorePath = DefaultLocalDbLocation
-	}
-	dirPath := fmt.Sprintf("%s/%s", starkDB.keystorePath, starkDB.project)
-	badgerOpts := badger.DefaultOptions(dirPath).WithLogger(nil)
-	ldb, err := badger.Open(badgerOpts)
-	if err != nil {
-		return nil, nil, errors.Wrap(err, ErrNewDb.Error())
-	}
-	starkDB.keystore = ldb
+	// now update the keystorePath variable to point to the requested project
+	starkDB.keystorePath = fmt.Sprintf("%s/%s", starkDB.keystorePath, starkDB.project)
 
 	// init the IPFS client
 	client, err := newIPFSclient(ctx)
@@ -220,16 +231,38 @@ func OpenDB(options ...DbOption) (*Db, func() error, error) {
 	}
 	starkDB.ipfsClient = client
 
+	// if there was a snapshot CID provided, remove anything already in the
+	// keystore path that could conflict and then retrieve the database
+	// snapshot
+	if len(starkDB.snapshotCID) != 0 {
+		if err := os.RemoveAll(starkDB.keystorePath); err != nil {
+			return nil, nil, err
+		}
+		if err := starkDB.getFile(starkDB.snapshotCID, starkDB.keystorePath); err != nil {
+			return nil, nil, err
+		}
+	}
+
+	// open up badger and attach to the starkDB
+	badgerOpts := badger.DefaultOptions(starkDB.keystorePath).WithLogger(nil)
+	ldb, err := badger.Open(badgerOpts)
+	if err != nil {
+		return nil, nil, errors.Wrap(err, ErrNewDb.Error())
+	}
+	starkDB.keystore = ldb
+
 	// return the teardown so we can ensure it happens
 	return starkDB, starkDB.teardown, nil
 }
 
-// IsOnline returns true if the starkDB is in online mode and the IPFS daemon is reachable.
+// IsOnline returns true if the starkDB is in online mode
+// and the IPFS daemon is reachable.
 func (Db *Db) IsOnline() bool {
 	return Db.ipfsClient.node.IsOnline && Db.allowNetwork
 }
 
-// GetNodeIdentity returns the PeerID of the underlying IPFS node for the starkDB.
+// GetNodeIdentity returns the PeerID of the underlying IPFS
+// node for the starkDB.
 func (Db *Db) GetNodeIdentity() (string, error) {
 	Db.lock.Lock()
 	defer Db.lock.Unlock()
@@ -240,6 +273,18 @@ func (Db *Db) GetNodeIdentity() (string, error) {
 		return "", ErrNoPeerID
 	}
 	return Db.ipfsClient.node.Identity.Pretty(), nil
+}
+
+// Snapshot copies the current database to the IPFS and
+// returns the CID needed for retrieval/sharing.
+func (Db *Db) Snapshot() (string, error) {
+	Db.lock.Lock()
+	defer Db.lock.Unlock()
+	cid, err := Db.addFile(Db.keystorePath)
+	if err != nil {
+		return "", err
+	}
+	return cid, nil
 }
 
 // Listen will start a subscription and emit Records as they
@@ -310,9 +355,9 @@ func (Db *Db) setProject(project string) error {
 	return nil
 }
 
-// setLocalStorage will check if a directory exists,
-// try and make it if not, then set the field on
-// IPFSnode.
+// setLocalStorage will check if the director(y/ies) exist(s),
+// creates them if not, then sets the storage location for
+// the local key-value store.
 func (Db *Db) setLocalStorage(path string) error {
 	if len(path) == 0 {
 		return fmt.Errorf("no path provided for local database")
@@ -367,6 +412,16 @@ func (Db *Db) setEncryption(val bool) error {
 
 	// set the key
 	Db.privateKey = key
+	return nil
+}
+
+// setSnapshotCID will record the CID of
+// a snapshotted database.
+func (Db *Db) setSnapshotCID(snapshotCID string) error {
+	if len(snapshotCID) == 0 {
+		return ErrNoCID
+	}
+	Db.snapshotCID = snapshotCID
 	return nil
 }
 

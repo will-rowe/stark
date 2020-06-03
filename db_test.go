@@ -2,6 +2,7 @@ package stark
 
 import (
 	"context"
+	"fmt"
 	"io/ioutil"
 	"os"
 	"strings"
@@ -9,21 +10,20 @@ import (
 )
 
 var (
-	testFile    = "README.md"
-	testDir     = "schema"
-	testFileKey = "test file"
-	testProject = "test project"
-	testKey     = "test entry"
+	testFile       = "README.md"
+	testDir        = "schema"
+	testFileKey    = "test file"
+	testProject    = "test_project"
+	testAltProject = "snapshotted_project"
+	testKey        = "test entry"
 
 	// fields for a test record
 	testAlias       = "test record"
 	testDescription = "this is a test record"
 
 	// tmp locations for database and result writes
-	tmpDir     = "tmp"
-	tmpDB      = tmpDir + "/DB"
-	resultFile = tmpDir + "/downloadedFile.md"
-	resultDir  = tmpDir + "/downloadedDir"
+	tmpDir  = "tmp"
+	tmpFile = tmpDir + "/downloadedFile.md"
 )
 
 // TestIPFSclient will run an IPFS client and check some methods.
@@ -52,7 +52,7 @@ func TestIPFSclient(t *testing.T) {
 func TestNewDB(t *testing.T) {
 
 	// init the starkDB
-	starkdb, teardown, err := OpenDB(SetProject(testProject), SetLocalStorageDir(tmpDB), WithPinning())
+	starkdb, teardown, err := OpenDB(SetProject(testProject), SetLocalStorageDir(tmpDir), WithPinning())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -61,8 +61,8 @@ func TestNewDB(t *testing.T) {
 	if starkdb.project != strings.ReplaceAll(testProject, " ", "_") {
 		t.Fatal("starkdb's project does not match the provided one")
 	}
-	if starkdb.keystorePath != tmpDB {
-		t.Fatal("starkdb's keystore path does not match the provided one")
+	if starkdb.keystorePath != fmt.Sprintf("%s/%s", tmpDir, testProject) {
+		t.Fatalf("starkdb's keystore path does not look right: %v", starkdb.keystorePath)
 	}
 	if !starkdb.pinning {
 		t.Fatal("IPFS node was told to pin but is not set for pinning")
@@ -109,7 +109,7 @@ func TestNewDB(t *testing.T) {
 func TestReopenDB(t *testing.T) {
 
 	// test you can reopen the starkDB
-	starkdb, teardown, err := OpenDB(SetProject(testProject), SetLocalStorageDir(tmpDB), WithPinning())
+	starkdb, teardown, err := OpenDB(SetProject(testProject), SetLocalStorageDir(tmpDir), WithPinning())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -132,7 +132,7 @@ func TestReopenDB(t *testing.T) {
 
 // TestFileIO will check a file can be added and retrieved from the IPFS.
 func TestFileIO(t *testing.T) {
-	starkdb, teardown, err := OpenDB(SetProject(testProject), SetLocalStorageDir(tmpDB), WithPinning())
+	starkdb, teardown, err := OpenDB(SetProject(testProject), SetLocalStorageDir(tmpDir), WithPinning())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -145,13 +145,12 @@ func TestFileIO(t *testing.T) {
 	}
 
 	// get the file back
-	reader, err := starkdb.getFile(cid)
-	if err != nil {
+	if err := starkdb.getFile(cid, tmpFile); err != nil {
 		t.Fatal(err)
 	}
 
 	// keep it as a byte slice for ease
-	retrievedFile, err := ioutil.ReadAll(reader)
+	retrievedFile, err := ioutil.ReadFile(tmpFile)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -168,7 +167,7 @@ func TestFileIO(t *testing.T) {
 
 // TestPubSub will check registering, announcing and listening.
 func TestPubSub(t *testing.T) {
-	starkdb, teardown, err := OpenDB(SetProject(testProject), SetLocalStorageDir(tmpDB), WithPinning(), WithAnnounce())
+	starkdb, teardown, err := OpenDB(SetProject(testProject), SetLocalStorageDir(tmpDir), WithPinning(), WithAnnounce())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -216,6 +215,46 @@ func TestPubSub(t *testing.T) {
 	if !receivedRecord {
 		t.Fatal("did not receive record via PubSub")
 	}
+}
+
+// TestSnapshot will test the snapshot method and clone function.
+func TestSnapshot(t *testing.T) {
+
+	// open the test database
+	starkdb, teardown, err := OpenDB(SetProject(testProject), SetLocalStorageDir(tmpDir), WithPinning(), WithAnnounce())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// snapshot it
+	snapshotCID, err := starkdb.Snapshot()
+	if err != nil {
+		teardown()
+		t.Fatal(err)
+	}
+
+	// close the database and remove it from local filesystem
+	if err := teardown(); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.RemoveAll(tmpDir); err != nil {
+		t.Fatal(err)
+	}
+
+	// open a fresh database with a snapshot
+	starkdb, teardown, err = OpenDB(SetProject(testAltProject), SetLocalStorageDir(tmpDir), WithSnapshot(snapshotCID))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer teardown()
+
+	// check for the record from earlier has been recovered
+	retrievedSample, err := starkdb.Get(testKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Log(retrievedSample)
+
 }
 
 // TestCleanup will cleanup the test tmp files.

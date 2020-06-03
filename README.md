@@ -116,8 +116,7 @@ View the [Go Documentation](https://pkg.go.dev/github.com/will-rowe/stark) site 
   - get a record from the open starkdb
 - Snapshot
   - save the current starkdb to the IPFS
-- Pull
-  - retrieve a starkdb from the IPFS
+  - the returned CID can be passed back to the OpenDB function
 - Listen
   - listens out for records being announced by other databases users
   - if they match your project name, the records are retrieved from the IPFS
@@ -144,3 +143,4 @@ View the [Go Documentation](https://pkg.go.dev/github.com/will-rowe/stark) site 
 - add a rollback feature that exploits the Record's CID history
 - library and sample linking are a wip, I think these links should be a list of UUID->CID lookups (so should check validity)
 - add a way to register nodes that you accept pubsub messages from for record retrieval
+- method for key-val iteration
