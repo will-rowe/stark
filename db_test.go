@@ -33,8 +33,14 @@ func TestIPFSclient(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
+	// get some bootstrappers
+	bootstrappers, err := setupBootstrappers(DefaultBootstrappers)
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	// start the client
-	client, err := newIPFSclient(ctx)
+	client, err := newIPFSclient(ctx, bootstrappers)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -52,7 +58,7 @@ func TestIPFSclient(t *testing.T) {
 func TestNewDB(t *testing.T) {
 
 	// init the starkDB
-	starkdb, teardown, err := OpenDB(SetProject(testProject), SetLocalStorageDir(tmpDir), WithPinning())
+	starkdb, teardown, err := OpenDB(SetProject(testProject), SetLocalStorageDir(tmpDir), SetBootstrappers(DefaultBootstrappers[:3]), WithPinning())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -63,6 +69,9 @@ func TestNewDB(t *testing.T) {
 	}
 	if starkdb.keystorePath != fmt.Sprintf("%s/%s", tmpDir, testProject) {
 		t.Fatalf("starkdb's keystore path does not look right: %v", starkdb.keystorePath)
+	}
+	if len(starkdb.bootstrappers) != 3 {
+		t.Fatalf("starkdb does not have expected number of bootstrappers listed: %d", len(starkdb.bootstrappers))
 	}
 	if !starkdb.pinning {
 		t.Fatal("IPFS node was told to pin but is not set for pinning")

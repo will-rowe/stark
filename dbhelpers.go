@@ -7,6 +7,26 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
+// IsOnline returns true if the starkDB is in online mode
+// and the IPFS daemon is reachable.
+func (Db *Db) IsOnline() bool {
+	return Db.ipfsClient.node.IsOnline && Db.allowNetwork
+}
+
+// GetNodeIdentity returns the PeerID of the underlying IPFS
+// node for the starkDB.
+func (Db *Db) GetNodeIdentity() (string, error) {
+	Db.lock.Lock()
+	defer Db.lock.Unlock()
+	if !Db.IsOnline() {
+		return "", ErrNodeOffline
+	}
+	if len(Db.ipfsClient.node.Identity) == 0 {
+		return "", ErrNoPeerID
+	}
+	return Db.ipfsClient.node.Identity.Pretty(), nil
+}
+
 // checkDir is a function to check that a directory exists
 func checkDir(dir string) error {
 	if dir == "" {

@@ -11,6 +11,7 @@ import (
 
 	"github.com/dgraph-io/badger"
 	icore "github.com/ipfs/interface-go-ipfs-core"
+	ma "github.com/multiformats/go-multiaddr"
 	"github.com/pkg/errors"
 )
 
@@ -37,21 +38,17 @@ const (
 	// MhType is the hash to use for DAG put operations.
 	MhType = uint64(math.MaxUint64) // use default hash (sha256 for cbor, sha1 for git..)
 
+	// MinBootstrappers is the minimum number of reachable bootstrappers required.
+	MinBootstrappers = 3
 )
 
 var (
 
-	// ErrNoProject indicates no project name was given.
-	ErrNoProject = fmt.Errorf("project name is required for a starkDB")
+	// ErrBootstrappers is issued when not enough bootstrappers are accessible.
+	ErrBootstrappers = fmt.Errorf("not enough bootstrappers found (minimum required: %d)", MinBootstrappers)
 
 	// ErrDbOption is issued for incorrect database initialisation options.
 	ErrDbOption = fmt.Errorf("starkDB option could not be set")
-
-	// ErrNewDb is issued when NewDb fails.
-	ErrNewDb = fmt.Errorf("could not initialise a starkDB")
-
-	// ErrNoEnvSet is issued when no env variable is found.
-	ErrNoEnvSet = fmt.Errorf("no private key found in %s", DefaultStarkEnvVariable)
 
 	// ErrEncryptKey is issued when the provided encyption key doesn't meet requirements.
 	ErrEncryptKey = fmt.Errorf("cannot load private key")
@@ -61,6 +58,12 @@ var (
 
 	// ErrKeyNotFound is issued during a Get request when the key is not present in the local keystore.
 	ErrKeyNotFound = fmt.Errorf("key not found in the database")
+
+	// ErrLinkExists indicates a record is already linked to the provided UUID.
+	ErrLinkExists = fmt.Errorf("record already linked to the provided UUID")
+
+	// ErrNewDb is issued when NewDb fails.
+	ErrNewDb = fmt.Errorf("could not initialise a starkDB")
 
 	// ErrNoCID indicates no CID was provided.
 	ErrNoCID = fmt.Errorf("no CID was provided")
@@ -74,14 +77,37 @@ var (
 	// ErrNodeOnline indicates the node is online.
 	ErrNodeOnline = fmt.Errorf("IPFS node is online")
 
+	// ErrNoEnvSet is issued when no env variable is found.
+	ErrNoEnvSet = fmt.Errorf("no private key found in %s", DefaultStarkEnvVariable)
+
 	// ErrNoPeerID indicates the IPFS node has no peer ID.
 	ErrNoPeerID = fmt.Errorf("no PeerID listed for the current IPFS node")
+
+	// ErrNoProject indicates no project name was given.
+	ErrNoProject = fmt.Errorf("project name is required for a starkDB")
 
 	// ErrNoSub indicates the IPFS node is not registered for PubSub.
 	ErrNoSub = fmt.Errorf("IPFS node has no topic registered for PubSub")
 
-	// ErrLinkExists indicates a record is already linked to the provided UUID.
-	ErrLinkExists = fmt.Errorf("record already linked to the provided UUID")
+	// DefaultBootstrappers are nodes used for IPFS peer discovery.
+	DefaultBootstrappers = []string{
+
+		// IPFS bootstrapper nodes
+		"/dnsaddr/bootstrap.libp2p.io/p2p/QmNnooDu7bfjPFoTZYxMNLWUQJyrVwtbZg5gBMjTezGAJN",
+		"/dnsaddr/bootstrap.libp2p.io/p2p/QmQCU2EcMqAqQPR2i9bChDtGNJchTbq5TbXJJ16u19uLTa",
+		"/dnsaddr/bootstrap.libp2p.io/p2p/QmbLHAnMoJPWSCR5Zhtx6BHJX9KiKNN6tpvbUcqanj75Nb",
+		"/dnsaddr/bootstrap.libp2p.io/p2p/QmcZf59bWwK5XFi76CZX8cbJ4BhTzzA3gU1ZjYZcYW3dwt",
+
+		// IPFS cluster pinning nodes
+		"/ip4/138.201.67.219/tcp/4001/p2p/QmUd6zHcbkbcs7SMxwLs48qZVX3vpcM8errYS7xEczwRMA",
+		"/ip4/138.201.67.219/udp/4001/quic/p2p/QmUd6zHcbkbcs7SMxwLs48qZVX3vpcM8errYS7xEczwRMA",
+		"/ip4/138.201.67.220/tcp/4001/p2p/QmNSYxZAiJHeLdkBg38roksAR9So7Y5eojks1yjEcUtZ7i",
+		"/ip4/138.201.67.220/udp/4001/quic/p2p/QmNSYxZAiJHeLdkBg38roksAR9So7Y5eojks1yjEcUtZ7i",
+		"/ip4/138.201.68.74/tcp/4001/p2p/QmdnXwLrC8p1ueiq2Qya8joNvk3TVVDAut7PrikmZwubtR",
+		"/ip4/138.201.68.74/udp/4001/quic/p2p/QmdnXwLrC8p1ueiq2Qya8joNvk3TVVDAut7PrikmZwubtR",
+		"/ip4/94.130.135.167/tcp/4001/p2p/QmUEMvxS2e7iDrereVYc5SWPauXPyNwxcy9BXZrC1QTcHE",
+		"/ip4/94.130.135.167/udp/4001/quic/p2p/QmUEMvxS2e7iDrereVYc5SWPauXPyNwxcy9BXZrC1QTcHE",
+	}
 )
 
 // DbOption is a wrapper struct used to pass functional
@@ -108,6 +134,18 @@ func SetProject(project string) DbOption {
 func SetLocalStorageDir(path string) DbOption {
 	return func(Db *Db) error {
 		return Db.setLocalStorage(path)
+	}
+}
+
+// SetBootstrappers is an option setter for the OpenDB
+// constructor that sets list of bootstrapper nodes to
+// use for IPFS peer discovery.
+//
+// Note: a default list of bootstrappers will be used
+// if this option setter is ommitted.
+func SetBootstrappers(bootstrapperList []string) DbOption {
+	return func(Db *Db) error {
+		return Db.setBootstrappers(bootstrapperList)
 	}
 }
 
@@ -162,11 +200,12 @@ type Db struct {
 	ctxCancel context.CancelFunc
 
 	// user-defined settings
-	project      string // the project which the database instance is managing
-	keystorePath string // local keystore location
-	snapshotCID  string // the optional snapshot CID provided during database opening
-	pinning      bool   // if true, IPFS IO will be done with pinning
-	announce     bool   // if true, new records added to the IPFS will be broadcast on the pubsub topic for this project
+	project       string         // the project which the database instance is managing
+	keystorePath  string         // local keystore location
+	bootstrappers []ma.Multiaddr // list of addresses to use for IPFS peer discovery
+	snapshotCID   string         // the optional snapshot CID provided during database opening
+	pinning       bool           // if true, IPFS IO will be done with pinning
+	announce      bool           // if true, new records added to the IPFS will be broadcast on the pubsub topic for this project
 
 	// not yet implemented:
 	allowNetwork bool   // controls the IPFS node's network connection // TODO: not yet implemented (thinking of local dbs)
@@ -221,11 +260,20 @@ func OpenDB(options ...DbOption) (*Db, func() error, error) {
 		}
 	}
 
+	// add in the default bootstrappers if none were provided
+	if starkDB.bootstrappers == nil {
+		addresses, err := setupBootstrappers(DefaultBootstrappers)
+		if err != nil {
+			return nil, nil, err
+		}
+		starkDB.bootstrappers = addresses
+	}
+
 	// now update the keystorePath variable to point to the requested project
 	starkDB.keystorePath = fmt.Sprintf("%s/%s", starkDB.keystorePath, starkDB.project)
 
 	// init the IPFS client
-	client, err := newIPFSclient(ctx)
+	client, err := newIPFSclient(starkDB.ctx, starkDB.bootstrappers)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -253,26 +301,6 @@ func OpenDB(options ...DbOption) (*Db, func() error, error) {
 
 	// return the teardown so we can ensure it happens
 	return starkDB, starkDB.teardown, nil
-}
-
-// IsOnline returns true if the starkDB is in online mode
-// and the IPFS daemon is reachable.
-func (Db *Db) IsOnline() bool {
-	return Db.ipfsClient.node.IsOnline && Db.allowNetwork
-}
-
-// GetNodeIdentity returns the PeerID of the underlying IPFS
-// node for the starkDB.
-func (Db *Db) GetNodeIdentity() (string, error) {
-	Db.lock.Lock()
-	defer Db.lock.Unlock()
-	if !Db.IsOnline() {
-		return "", ErrNodeOffline
-	}
-	if len(Db.ipfsClient.node.Identity) == 0 {
-		return "", ErrNoPeerID
-	}
-	return Db.ipfsClient.node.Identity.Pretty(), nil
 }
 
 // Snapshot copies the current database to the IPFS and
@@ -341,6 +369,32 @@ func (Db *Db) Listen(terminator chan struct{}) (chan *Record, chan error) {
 	return recChan, errChan
 }
 
+// teardown will close down all the open guff
+// nicely.
+func (Db *Db) teardown() error {
+	Db.lock.Lock()
+	Db.lock.Unlock()
+
+	// close the local keystore
+	if err := Db.keystore.Close(); err != nil {
+		return err
+	}
+
+	// cancel the db context
+	Db.ctxCancel()
+
+	// close IPFS
+	if err := Db.ipfsClient.endSession(); err != nil {
+		return err
+	}
+
+	// check the node is offline
+	if Db.IsOnline() {
+		return ErrNodeOnline
+	}
+	return nil
+}
+
 // setProject will set the database project.
 func (Db *Db) setProject(project string) error {
 
@@ -372,6 +426,23 @@ func (Db *Db) setLocalStorage(path string) error {
 		}
 	}
 	Db.keystorePath = path
+	return nil
+}
+
+// setBootstrappers will set the bootstrapper nodes
+// to use for IPFS peer discovery.
+func (Db *Db) setBootstrappers(nodeList []string) error {
+	if len(nodeList) == 0 {
+		return fmt.Errorf("no bootstrapper nodes provided")
+	}
+	addresses, err := setupBootstrappers(nodeList)
+	if err != nil {
+		return err
+	}
+	if len(addresses) < MinBootstrappers {
+		return ErrBootstrappers
+	}
+	Db.bootstrappers = addresses
 	return nil
 }
 
@@ -422,31 +493,5 @@ func (Db *Db) setSnapshotCID(snapshotCID string) error {
 		return ErrNoCID
 	}
 	Db.snapshotCID = snapshotCID
-	return nil
-}
-
-// teardown will close down all the open guff
-// nicely.
-func (Db *Db) teardown() error {
-	Db.lock.Lock()
-	Db.lock.Unlock()
-
-	// close the local keystore
-	if err := Db.keystore.Close(); err != nil {
-		return err
-	}
-
-	// cancel the db context
-	Db.ctxCancel()
-
-	// close IPFS
-	if err := Db.ipfsClient.endSession(); err != nil {
-		return err
-	}
-
-	// check the node is offline
-	if Db.IsOnline() {
-		return ErrNodeOnline
-	}
 	return nil
 }

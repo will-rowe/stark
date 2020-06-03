@@ -19,29 +19,6 @@ import (
 	"github.com/libp2p/go-libp2p-core/peer"
 )
 
-var (
-
-	// defaultBootstrap nodes used by IPFS.
-	defaultBootstrapNodes = []string{
-
-		// IPFS bootstrapper nodes
-		"/dnsaddr/bootstrap.libp2p.io/p2p/QmNnooDu7bfjPFoTZYxMNLWUQJyrVwtbZg5gBMjTezGAJN",
-		"/dnsaddr/bootstrap.libp2p.io/p2p/QmQCU2EcMqAqQPR2i9bChDtGNJchTbq5TbXJJ16u19uLTa",
-		"/dnsaddr/bootstrap.libp2p.io/p2p/QmbLHAnMoJPWSCR5Zhtx6BHJX9KiKNN6tpvbUcqanj75Nb",
-		"/dnsaddr/bootstrap.libp2p.io/p2p/QmcZf59bWwK5XFi76CZX8cbJ4BhTzzA3gU1ZjYZcYW3dwt",
-
-		// IPFS cluster pinning nodes
-		"/ip4/138.201.67.219/tcp/4001/p2p/QmUd6zHcbkbcs7SMxwLs48qZVX3vpcM8errYS7xEczwRMA",
-		"/ip4/138.201.67.219/udp/4001/quic/p2p/QmUd6zHcbkbcs7SMxwLs48qZVX3vpcM8errYS7xEczwRMA",
-		"/ip4/138.201.67.220/tcp/4001/p2p/QmNSYxZAiJHeLdkBg38roksAR9So7Y5eojks1yjEcUtZ7i",
-		"/ip4/138.201.67.220/udp/4001/quic/p2p/QmNSYxZAiJHeLdkBg38roksAR9So7Y5eojks1yjEcUtZ7i",
-		"/ip4/138.201.68.74/tcp/4001/p2p/QmdnXwLrC8p1ueiq2Qya8joNvk3TVVDAut7PrikmZwubtR",
-		"/ip4/138.201.68.74/udp/4001/quic/p2p/QmdnXwLrC8p1ueiq2Qya8joNvk3TVVDAut7PrikmZwubtR",
-		"/ip4/94.130.135.167/tcp/4001/p2p/QmUEMvxS2e7iDrereVYc5SWPauXPyNwxcy9BXZrC1QTcHE",
-		"/ip4/94.130.135.167/udp/4001/quic/p2p/QmUEMvxS2e7iDrereVYc5SWPauXPyNwxcy9BXZrC1QTcHE",
-	}
-)
-
 // repoPath is set by init.
 var repoPath string
 
@@ -96,20 +73,10 @@ func (client *client) printListeners() {
 // library example (go-ipfs v0.5.0), see:
 // https://github.com/ipfs/go-ipfs/blob/2dc1f691f1bb98cadd7e7867cb924ce69f126751/docs/examples/go-ipfs-as-a-library/main.go
 //
-func newIPFSclient(ctx context.Context) (*client, error) {
+func newIPFSclient(ctx context.Context, bootstrappers []ma.Multiaddr) (*client, error) {
 
 	// setup the empty client
 	client := &client{}
-
-	// set up the Peer addresses
-	ipfsBootstrapAddrs := make([]ma.Multiaddr, len(defaultBootstrapNodes))
-	for i, v := range defaultBootstrapNodes {
-		a, err := ma.NewMultiaddr(v)
-		if err != nil {
-			return nil, err
-		}
-		ipfsBootstrapAddrs[i] = a
-	}
 
 	// open the default repo
 	repo, err := fsrepo.Open(repoPath)
@@ -136,7 +103,7 @@ func newIPFSclient(ctx context.Context) (*client, error) {
 	client.node = node
 
 	// bootstrap the node
-	addrInfos, err := peer.AddrInfosFromP2pAddrs(ipfsBootstrapAddrs...)
+	addrInfos, err := peer.AddrInfosFromP2pAddrs(bootstrappers...)
 	if err != nil {
 		return nil, err
 	}
@@ -171,4 +138,21 @@ func setupPlugins(externalPluginsPath string) (*loader.PluginLoader, error) {
 		return nil, fmt.Errorf("error initializing plugins: %s", err)
 	}
 	return plugins, nil
+}
+
+// setupBootstrappers takes a list of bootstrapper nodes
+// and returns their multiaddresses.
+func setupBootstrappers(nodes []string) ([]ma.Multiaddr, error) {
+	if len(nodes) == 0 {
+		return nil, fmt.Errorf("no list of bootstrapping nodes provided")
+	}
+	adds := []ma.Multiaddr{}
+	for _, node := range nodes {
+		add, err := ma.NewMultiaddr(node)
+		if err != nil {
+			return nil, err
+		}
+		adds = append(adds, add)
+	}
+	return adds, nil
 }
