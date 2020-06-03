@@ -12,7 +12,7 @@
 
 ## Overview
 
-**stark** is an IPFS-backed database for recording and distributing sequencing data. It is both a library and a a Command Line Utility for running and interacting with **stark databases**. Features include:
+**stark** is an IPFS-backed database for recording and distributing sequencing data. It is both a library and a Command Line Utility for running and interacting with **stark databases**. Features include:
 
 - snapshot and sync entire databases over the IPFS
 - use PubSub messaging to share and collect data records as they are created
@@ -134,13 +134,3 @@ View the [Go Documentation](https://pkg.go.dev/github.com/will-rowe/stark) site 
 - if a record is retrieved from the database and updated, you need to then re-add it to the database. In other words, a **stark database** only records the most recent version of a record commited to the IPFS
 - records have a history, which can be used to rollback changes to other version of the record that entered the IPFS
 - even though schema is in protobuf, most of the time it's marshaling to JSON to pass stuff around
-
-## TODO
-
-- the command line tool
-- validate concurrent access
-- work on optional encryption of record fields
-- add a rollback feature that exploits the Record's CID history
-- library and sample linking are a wip, I think these links should be a list of UUID->CID lookups (so should check validity)
-- add a way to register nodes that you accept pubsub messages from for record retrieval
-- method for key-val iteration
