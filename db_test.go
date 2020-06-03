@@ -121,7 +121,7 @@ func TestNewDB(t *testing.T) {
 	}
 }
 
-// TestReopenDB will check database re-opening and getting.
+// TestReopenDB will check database re-opening, getting and deleting.
 func TestReopenDB(t *testing.T) {
 
 	// test you can reopen the starkDB
@@ -143,7 +143,15 @@ func TestReopenDB(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Log(link)
+	t.Logf("explorer link: %v", link)
+
+	// try deleting
+	if err := starkdb.Delete(testKey); err != nil {
+		t.Fatal(err)
+	}
+	if starkdb.numKeys != 0 {
+		t.Fatal("db is not empty after delete operation on sole entry")
+	}
 }
 
 // TestFileIO will check a file can be added and retrieved from the IPFS.

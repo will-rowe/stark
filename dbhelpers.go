@@ -5,8 +5,53 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/dgraph-io/badger"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
+
+/*
+// RangeObject is returned from the Range method
+// for each entry in the starkDB. It contains
+// the Key, Record CID and any error.
+type RangeObject struct {
+	Key   string
+	CID   string
+	Error error
+}
+
+// Range will return a channel of RangeObjects from the
+// StarkDB. Each Range object will contain a starkDB
+// key, associated Record CID and any error encountered
+// during lookup.
+func (Db *Db) Range() chan *RangeObject {
+	dataChan := make(chan *RangeObject)
+	go func() {
+		stream := Db.keystore.NewStream()
+
+		stream.Send = func(kvlist *pb.KVList) (err error) {
+			for _, kv := range kvlist.Kv {
+				k, v := kv.GetKey(), kv.GetValue()
+				if _, err = fmt.Fprintf(out, "+%d,%d:%s->", len(k), len(v), k); err != nil {
+					return err
+				}
+				if _, err := out.Write(v); err != nil {
+					return err
+				}
+				if err = out.WriteByte('\n'); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+
+
+		stream.Send = func(list *pb.KVList) error {
+			return proto.MarshalText(w, list) // Write to w.
+		  }
+	}()
+	return dataChan
+}
+*/
 
 // dbMetadata is used to dump database metadata to
 // JSON.
@@ -15,6 +60,7 @@ type dbMetadata struct {
 	KeystorePath string `json:"keystore"`
 	Pinning      bool   `json:"pinning"`
 	Announcing   bool   `json:"announcing"`
+	NumKeys      int    `json:"number_of_keys"`
 }
 
 // MarshalJSON is used to satisify the JSON Marshaler
@@ -26,6 +72,7 @@ func (Db *Db) MarshalJSON() ([]byte, error) {
 		Db.keystorePath,
 		Db.pinning,
 		Db.announcing,
+		Db.numKeys,
 	})
 }
 
@@ -56,6 +103,28 @@ func (Db *Db) GetNodeIdentity() (string, error) {
 		return "", ErrNoPeerID
 	}
 	return Db.ipfsClient.node.Identity.Pretty(), nil
+}
+
+// refreshCount will clear the record counter and then
+// recount the number of record keys that are in the
+// starkDB.
+func (Db *Db) refreshCount() error {
+	Db.lock.Lock()
+	defer Db.lock.Unlock()
+	Db.numKeys = 0
+	err := Db.keystore.View(func(txn *badger.Txn) error {
+		opts := badger.DefaultIteratorOptions
+		opts.PrefetchValues = false
+		it := txn.NewIterator(opts)
+		defer it.Close()
+		for it.Rewind(); it.Valid(); it.Next() {
+			Db.numKeys++
+			//item := it.Item()
+			//k := item.Key()
+		}
+		return nil
+	})
+	return err
 }
 
 // checkDir is a function to check that a directory exists

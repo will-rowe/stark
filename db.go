@@ -213,6 +213,7 @@ type Db struct {
 
 	// local storage
 	keystore *badger.DB // local keystore to relate record UUIDs to IPFS CIDs
+	numKeys  int        // the number of keys in the keystore (checked on db open and then incremented/decremented during Set/Delete ops)
 
 	// IPFS
 	ipfsClient *client // wraps the IPFS core API
@@ -298,6 +299,11 @@ func OpenDB(options ...DbOption) (*Db, func() error, error) {
 		return nil, nil, errors.Wrap(err, ErrNewDb.Error())
 	}
 	starkDB.keystore = ldb
+
+	// update the database counts
+	if err := starkDB.refreshCount(); err != nil {
+		return nil, nil, err
+	}
 
 	// return the teardown so we can ensure it happens
 	return starkDB, starkDB.teardown, nil

@@ -23,12 +23,14 @@ import (
 // Set adds a comment to the Record's history before adding it to the
 // IPFS.
 func (Db *Db) Set(key string, record *Record) error {
+	Db.lock.Lock()
+	defer Db.lock.Unlock()
 
 	// check the local keystore to see if this key has been used before
 	if existingCID, exists := Db.keystoreGet(key); exists {
 
 		// retrieve the record for this key
-		existingRecord, err := Db.Get(key)
+		existingRecord, err := Db.GetRecordFromCID(existingCID)
 		if err != nil {
 			return err
 		}
@@ -69,11 +71,17 @@ func (Db *Db) Set(key string, record *Record) error {
 	}
 
 	// add the returned CID to the local keystore
-	return Db.keystoreSet(key, cid)
+	if err := Db.keystoreSet(key, cid); err != nil {
+		return err
+	}
+	Db.numKeys++
+	return nil
 }
 
 // Get will retrieve a Record from the starkDB using the provided key.
 func (Db *Db) Get(key string) (*Record, error) {
+	Db.lock.Lock()
+	defer Db.lock.Unlock()
 
 	// check the local keystore for the provided key
 	cid, exists := Db.keystoreGet(key)
@@ -83,6 +91,35 @@ func (Db *Db) Get(key string) (*Record, error) {
 
 	// use the helper method to retrieve the Record
 	return Db.GetRecordFromCID(cid)
+}
+
+// Delete will delete an entry from starkDB. This involves
+// removing the key and Record CID from the local store,
+// as well as unpinning the Record from the IPFS.
+//
+// Note: I'm not sure how this behaves if the Record
+// wasn't pinned in the IPFS in the first place.
+func (Db *Db) Delete(key string) error {
+	Db.lock.Lock()
+	defer Db.lock.Unlock()
+
+	// check the local keystore for the provided key
+	cid, exists := Db.keystoreGet(key)
+	if !exists {
+		return fmt.Errorf("%v: %v", ErrKeyNotFound, key)
+	}
+
+	// unpin
+	if err := Db.ipfsClient.ipfs.Pin().Rm(Db.ctx, path.New(cid)); err != nil {
+		return err
+	}
+
+	// remove from the keystore
+	if err := Db.keystoreDelete(key); err != nil {
+		return err
+	}
+	Db.numKeys--
+	return nil
 }
 
 // GetRecordFromCID is a helper method that collects a Record from
@@ -271,6 +308,13 @@ func (Db *Db) keystoreGet(key string) (string, bool) {
 		panic(err)
 	}
 	return string(returnedValue), true
+}
+
+// keystoreDelete will remove a key value pair from the local keystore.
+func (Db *Db) keystoreDelete(key string) error {
+	return Db.keystore.Update(func(txn *badger.Txn) error {
+		return txn.Delete([]byte(key))
+	})
 }
 
 // addFile will add a file (or directory) to the IPFS and return
