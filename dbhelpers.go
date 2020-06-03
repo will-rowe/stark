@@ -57,6 +57,7 @@ func (Db *Db) Range() chan *RangeObject {
 // JSON.
 type dbMetadata struct {
 	Project      string `json:"project"`
+	Host         string `json:"host_node"`
 	KeystorePath string `json:"keystore"`
 	Pinning      bool   `json:"pinning"`
 	Announcing   bool   `json:"announcing"`
@@ -67,8 +68,13 @@ type dbMetadata struct {
 // interface for the Db but restricts data to that
 // specified by the dbMetadata struct.
 func (Db *Db) MarshalJSON() ([]byte, error) {
+	nodeID, err := Db.GetNodeIdentity()
+	if err != nil {
+		return nil, err
+	}
 	return json.Marshal(dbMetadata{
 		Db.project,
+		nodeID,
 		Db.keystorePath,
 		Db.pinning,
 		Db.announcing,

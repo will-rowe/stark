@@ -177,6 +177,9 @@ func (Db *Db) Snapshot() (string, error) {
 	if err := Db.keystore.Sync(); err != nil {
 		return "", err
 	}
+	if err := checkDir(Db.keystorePath); err != nil {
+		return "", err
+	}
 	cid, err := Db.addFile(Db.keystorePath)
 	if err != nil {
 		return "", err
