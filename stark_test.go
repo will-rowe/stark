@@ -29,6 +29,17 @@ func ExampleOpenDB() {
 
 // ExampleRangeCIDs documents the usage of RangeCIDs.
 func ExampleRangeCIDs() {
+
+	// init the starkDB with functional options
+	starkdb, dbCloser, err := OpenDB(SetProject("my project"), SetLocalStorageDir("/tmp/starkdb"), WithPinning())
+	if err != nil {
+		panic(err)
+	}
+
+	// defer the database closer
+	defer dbCloser()
+
+	// range over the database entries (as KeyCIDpairs)
 	for entry := range starkdb.RangeCIDs() {
 		if entry.Error != nil {
 			panic(err)
