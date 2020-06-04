@@ -227,8 +227,11 @@ func TestPubSub(t *testing.T) {
 	terminator := make(chan struct{})
 	testErrs := make(chan error)
 	receivedRecord := false
+	recs, errs, err := starkdb.Listen(terminator)
+	if err != nil {
+		t.Fatal(err)
+	}
 	go func() {
-		recs, errs := starkdb.Listen(terminator)
 		select {
 		case rec := <-recs:
 			t.Log("received record via PubSub: ", rec)

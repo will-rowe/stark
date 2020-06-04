@@ -108,28 +108,36 @@ func (Db *Db) RangeCIDs() chan KeyCIDpair {
 	return returnChan
 }
 
-// Listen will start a subscription and emit Records as they
-// are announced on the PubSub network and match the
-// database's topic.
-func (Db *Db) Listen(terminator chan struct{}) (chan *Record, chan error) {
+// Listen will start a subscription to the IPFS PubSub network
+// for messages matching the current database's project. It
+// tries pulling Records from the IPFS via the announced
+// CIDs, then returns them via a channel to the caller.
+//
+// It returns the Record channel, an Error channel which reports
+// errors during message processing and Record retrieval, as well
+// as any error during the PubSub setup.
+func (Db *Db) Listen(terminator chan struct{}) (chan *Record, chan error, error) {
+	if !Db.IsOnline() {
+		return nil, nil, ErrNodeOffline
+	}
 
-	// cidTracker skips over duplicate CIDs
+	// subscribe the node to the starkDB project
+	if err := Db.ipfsClient.subscribe(Db.ctx, Db.project); err != nil {
+		return nil, nil, err
+	}
+
+	// cidTracker skips listener over duplicate CIDs
 	cidTracker := make(map[string]struct{})
 
-	// channels used to send Records and errors back to the caller
+	// create channels used to send Records and errors back to the caller
 	recChan := make(chan *Record, DefaultBufferSize)
 	errChan := make(chan error)
-
-	// subscribe the database
-	if err := Db.subscribe(); err != nil {
-		errChan <- err
-	}
 
 	// process the incoming messages
 	go func() {
 		for {
 			select {
-			case msg := <-Db.pubsubMessages:
+			case msg := <-Db.ipfsClient.pubsubMessages:
 
 				// TODO: check sender peerID
 				//msg.From()
@@ -154,11 +162,11 @@ func (Db *Db) Listen(terminator chan struct{}) (chan *Record, chan error) {
 					recChan <- collectedRecord
 				}
 
-			case err := <-Db.pubsubErrors:
+			case err := <-Db.ipfsClient.pubsubErrors:
 				errChan <- err
 
 			case <-terminator:
-				if err := Db.unsubscribe(); err != nil {
+				if err := Db.ipfsClient.unsubscribe(); err != nil {
 					errChan <- err
 				}
 				close(recChan)
@@ -167,7 +175,19 @@ func (Db *Db) Listen(terminator chan struct{}) (chan *Record, chan error) {
 			}
 		}
 	}()
-	return recChan, errChan
+	return recChan, errChan, nil
+}
+
+// publishAnnouncement will send a PubSub message on the topic
+// of the database project.
+func (Db *Db) publishAnnouncement(message []byte) error {
+	if !Db.IsOnline() {
+		return ErrNodeOffline
+	}
+	if len(Db.project) == 0 {
+		return ErrNoProject
+	}
+	return Db.ipfsClient.ipfs.PubSub().Publish(Db.ctx, Db.project, message)
 }
 
 // refreshCount will clear the record counter and then

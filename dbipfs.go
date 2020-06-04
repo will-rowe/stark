@@ -3,6 +3,7 @@ package stark
 import (
 	"context"
 	"fmt"
+	"io"
 	"path/filepath"
 
 	config "github.com/ipfs/go-ipfs-config"
@@ -11,6 +12,7 @@ import (
 	"github.com/ipfs/go-ipfs/plugin/loader"
 	"github.com/ipfs/go-ipfs/repo"
 	icore "github.com/ipfs/interface-go-ipfs-core"
+	"github.com/ipfs/interface-go-ipfs-core/options"
 	ma "github.com/multiformats/go-multiaddr"
 
 	"github.com/ipfs/go-ipfs/core"
@@ -42,13 +44,23 @@ func init() {
 // client is a wrapper that groups and controls access to the IPFS
 // for the starkDB.
 type client struct {
-	ipfs icore.CoreAPI // the exported API
+
+	// API:
+	ipfs icore.CoreAPI
 	repo repo.Repo
 	node *core.IpfsNode
+
+	// PubSub:
+	pubsubSub      icore.PubSubSubscription // the pubsub subscription
+	pubsubMessages chan icore.PubSubMessage // used to receive pubsub messages
+	pubsubErrors   chan error               // used to receive pubsub errors
+	pubsubStop     chan struct{}            // used to signal the pubsub goroutine to end
+	pubsubStopped  chan struct{}            // used to signal the pubsub goroutine has ended
 }
 
 // endSession closes down the client.
 func (client *client) endSession() error {
+
 	if err := client.repo.Close(); err != nil {
 		return err
 	}
@@ -65,6 +77,78 @@ func (client *client) printListeners() {
 	for _, addr := range addrs {
 		fmt.Printf("IPFS client node listening on %v/p2p/%v\n", addr, client.node.Identity)
 	}
+}
+
+// subscribe will start a PubSub subscription for the provided topic.
+//
+// Note: see https://blog.ipfs.io/25-pubsub/ for good intro on PubSub
+func (client *client) subscribe(ctx context.Context, topic string) error {
+
+	// use the DHT to find other peers
+	discover := true
+
+	// setup the subscription
+	sub, err := client.ipfs.PubSub().Subscribe(ctx, topic, options.PubSub.Discover(discover))
+	if err != nil {
+		return err
+	}
+	client.pubsubSub = sub
+
+	// create the channels
+	client.pubsubMessages = make(chan icore.PubSubMessage)
+	client.pubsubErrors = make(chan error)
+	client.pubsubStop = make(chan struct{})
+	client.pubsubStopped = make(chan struct{})
+
+	// start listening for pubsub messages
+	go func() {
+
+		// close the stoppedchan when this func exits
+		defer close(client.pubsubStopped)
+
+		// collect messages and wait for signals
+		for {
+			select {
+
+			default:
+
+				// collect the message and check it out
+				// before sending it on the collection chan
+				message, err := client.pubsubSub.Next(ctx)
+				if err == io.EOF || err == context.Canceled {
+					continue
+				} else if err != nil {
+					client.pubsubErrors <- err
+				} else {
+					client.pubsubMessages <- message
+				}
+			case <-client.pubsubStop:
+				return
+			}
+		}
+	}()
+	return nil
+}
+
+// unsubscribe will stop an active PubSub subscription.
+func (client *client) unsubscribe() error {
+
+	// signal the listener to stop
+	close(client.pubsubStop)
+
+	// wait until it's stopped
+	<-client.pubsubStopped
+
+	// close down the remaining chans
+	close(client.pubsubMessages)
+	close(client.pubsubErrors)
+
+	// unset the subscription
+	if err := client.pubsubSub.Close(); err != nil {
+		return err
+	}
+	client.pubsubSub = nil
+	return nil
 }
 
 // newIPFSclient will initialise the IPFS client.

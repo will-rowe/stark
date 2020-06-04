@@ -20,7 +20,6 @@ import (
 	"sync"
 
 	"github.com/dgraph-io/badger" // Db is the starkDB database.
-	icore "github.com/ipfs/interface-go-ipfs-core"
 	ma "github.com/multiformats/go-multiaddr"
 )
 
@@ -149,14 +148,7 @@ type Db struct {
 	currentNumEntries int        // the number of keys in the keystore (checked on db open and then incremented/decremented during Set/Delete ops)
 
 	// IPFS
-	ipfsClient *client // wraps the IPFS core API
-
-	// PubSub
-	pubsubSub      icore.PubSubSubscription // the pubsub subscription
-	pubsubMessages chan icore.PubSubMessage // used to receive pubsub messages
-	pubsubErrors   chan error               // used to receive pubsub errors
-	pubsubStop     chan struct{}            // used to signal the pubsub goroutine to end
-	pubsubStopped  chan struct{}            // used to signal the pubsub goroutine has ended
+	ipfsClient *client // wraps the IPFS core API, node and PubSub channels
 }
 
 // DbOption is a wrapper struct used to pass functional
