@@ -49,6 +49,26 @@ func (Db *Db) DumpMetadata() (string, error) {
 	return fmt.Sprintf("%s\n", string(b)), nil
 }
 
+// IsOnline returns true if the starkDB is in online mode
+// and the IPFS daemon is reachable.
+func (Db *Db) IsOnline() bool {
+	return Db.ipfsClient.node.IsOnline && Db.allowNetwork
+}
+
+// GetNodeIdentity returns the PeerID of the underlying IPFS
+// node for the starkDB instance.
+func (Db *Db) GetNodeIdentity() (string, error) {
+	Db.lock.Lock()
+	defer Db.lock.Unlock()
+	if !Db.IsOnline() {
+		return "", ErrNodeOffline
+	}
+	if len(Db.ipfsClient.node.Identity) == 0 {
+		return "", ErrNoPeerID
+	}
+	return Db.ipfsClient.node.Identity.Pretty(), nil
+}
+
 // RangeCIDs is used to iterate over all the starkDB keys
 // and their corresponding Record CIDs.
 //
@@ -88,24 +108,66 @@ func (Db *Db) RangeCIDs() chan KeyCIDpair {
 	return returnChan
 }
 
-// IsOnline returns true if the starkDB is in online mode
-// and the IPFS daemon is reachable.
-func (Db *Db) IsOnline() bool {
-	return Db.ipfsClient.node.IsOnline && Db.allowNetwork
-}
+// Listen will start a subscription and emit Records as they
+// are announced on the PubSub network and match the
+// database's topic.
+func (Db *Db) Listen(terminator chan struct{}) (chan *Record, chan error) {
 
-// GetNodeIdentity returns the PeerID of the underlying IPFS
-// node for the starkDB.
-func (Db *Db) GetNodeIdentity() (string, error) {
-	Db.lock.Lock()
-	defer Db.lock.Unlock()
-	if !Db.IsOnline() {
-		return "", ErrNodeOffline
+	// cidTracker skips over duplicate CIDs
+	cidTracker := make(map[string]struct{})
+
+	// channels used to send Records and errors back to the caller
+	recChan := make(chan *Record, DefaultBufferSize)
+	errChan := make(chan error)
+
+	// subscribe the database
+	if err := Db.subscribe(); err != nil {
+		errChan <- err
 	}
-	if len(Db.ipfsClient.node.Identity) == 0 {
-		return "", ErrNoPeerID
-	}
-	return Db.ipfsClient.node.Identity.Pretty(), nil
+
+	// process the incoming messages
+	go func() {
+		for {
+			select {
+			case msg := <-Db.pubsubMessages:
+
+				// TODO: check sender peerID
+				//msg.From()
+
+				// get the CID
+				cid := string(msg.Data())
+				if _, ok := cidTracker[cid]; ok {
+					continue
+				}
+				cidTracker[cid] = struct{}{}
+
+				// collect the Record from IPFS
+				collectedRecord, err := Db.GetRecordFromCID(cid)
+				if err != nil {
+					errChan <- err
+				} else {
+
+					// add a comment to say this Record was from PubSub
+					collectedRecord.AddComment(fmt.Sprintf("collected from %s via pubsub.", msg.From()))
+
+					// send the record on to the caller
+					recChan <- collectedRecord
+				}
+
+			case err := <-Db.pubsubErrors:
+				errChan <- err
+
+			case <-terminator:
+				if err := Db.unsubscribe(); err != nil {
+					errChan <- err
+				}
+				close(recChan)
+				close(errChan)
+				return
+			}
+		}
+	}()
+	return recChan, errChan
 }
 
 // refreshCount will clear the record counter and then

@@ -183,68 +183,6 @@ func OpenDB(options ...DbOption) (*Db, func() error, error) {
 	return starkDB, starkDB.teardown, nil
 }
 
-// Listen will start a subscription and emit Records as they
-// are announced on the PubSub network and match the
-// database's topic.
-func (Db *Db) Listen(terminator chan struct{}) (chan *Record, chan error) {
-
-	// cidTracker skips over duplicate CIDs
-	cidTracker := make(map[string]struct{})
-
-	// channels used to send Records and errors back to the caller
-	recChan := make(chan *Record, DefaultBufferSize)
-	errChan := make(chan error)
-
-	// subscribe the database
-	if err := Db.subscribe(); err != nil {
-		errChan <- err
-	}
-
-	// process the incoming messages
-	go func() {
-		for {
-			select {
-			case msg := <-Db.pubsubMessages:
-
-				// TODO: check sender peerID
-				//msg.From()
-
-				// get the CID
-				cid := string(msg.Data())
-				if _, ok := cidTracker[cid]; ok {
-					continue
-				}
-				cidTracker[cid] = struct{}{}
-
-				// collect the Record from IPFS
-				collectedRecord, err := Db.GetRecordFromCID(cid)
-				if err != nil {
-					errChan <- err
-				} else {
-
-					// add a comment to say this Record was from PubSub
-					collectedRecord.AddComment(fmt.Sprintf("collected from %s via pubsub.", msg.From()))
-
-					// send the record on to the caller
-					recChan <- collectedRecord
-				}
-
-			case err := <-Db.pubsubErrors:
-				errChan <- err
-
-			case <-terminator:
-				if err := Db.unsubscribe(); err != nil {
-					errChan <- err
-				}
-				close(recChan)
-				close(errChan)
-				return
-			}
-		}
-	}()
-	return recChan, errChan
-}
-
 // teardown will close down all the open guff
 // nicely.
 func (Db *Db) teardown() error {
