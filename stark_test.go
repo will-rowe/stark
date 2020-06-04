@@ -1,5 +1,7 @@
 package stark
 
+import "fmt"
+
 // ExampleOpenDB documents the usage of OpenDB.
 func ExampleOpenDB() {
 
@@ -22,5 +24,15 @@ func ExampleOpenDB() {
 	err = starkdb.Set("db key", record)
 	if err != nil {
 		panic(err)
+	}
+}
+
+// ExampleRangeCIDs documents the usage of RangeCIDs.
+func ExampleRangeCIDs() {
+	for entry := range starkdb.RangeCIDs() {
+		if entry.Error != nil {
+			panic(err)
+		}
+		fmt.Printf("key: %s, value: %s\n", entry.Key, entry.CID)
 	}
 }

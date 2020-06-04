@@ -1,7 +1,14 @@
-/*Package stark is an IPFS-backed database for recording and
-distributing sequencing data.
+/*Package stark is an IPFS-backed database for distributed
+Sequence Recording And Record Keeping.
 
-It uses a local badger-db key value store to track CIDs.
+It is both a library and a Command Line Utility for running
+and interacting with **stark databases**.
 
-More info is being added to docs as package develops.*/
+Features include:
+
+- snapshot and sync entire databases over the IPFS
+- use PubSub messaging to share and collect data records as they are created
+- track record history and rollback revisions (rollback feature WIP)
+- attach and sync files to records (WIP)
+- encrypt record fields*/
 package stark // import "github.com/will-rowe/stark"
