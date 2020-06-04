@@ -8,10 +8,6 @@ import (
 	"github.com/google/uuid"
 )
 
-// RecordOption is a wrapper struct used to pass functional
-// options to the Record constructor.
-type RecordOption func(Record *Record) error
-
 // SetAlias is an option setter for the NewRecord constructor
 // that sets the human readable label of a Record.
 func SetAlias(alias string) RecordOption {

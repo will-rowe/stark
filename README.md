@@ -109,13 +109,13 @@ View the [Go Documentation](https://pkg.go.dev/github.com/will-rowe/stark) site 
 - NewRecord
   - creates a new record to represent a sequencing data object
 - OpenDB
-  - open a starkdb
+  - open a starkDB
 - Set
-  - add a record to the open starkdb
+  - add a record to the open starDB
 - Get
-  - get a record from the open starkdb
+  - get a record from the open starkDB
 - Snapshot
-  - save the current starkdb to the IPFS
+  - save the current starkDB to the IPFS
   - the returned CID can be passed back to the OpenDB function
 - Listen
   - listens out for records being announced by other databases users

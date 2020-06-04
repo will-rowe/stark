@@ -26,6 +26,11 @@ func (Db *Db) Set(key string, record *Record) error {
 	Db.lock.Lock()
 	defer Db.lock.Unlock()
 
+	// max entry check
+	if Db.currentNumEntries == Db.maxEntries {
+		return ErrMaxEntriesExceeded
+	}
+
 	// check the local keystore to see if this key has been used before
 	if existingCID, exists := Db.keystoreGet(key); exists {
 
@@ -74,7 +79,7 @@ func (Db *Db) Set(key string, record *Record) error {
 	if err := Db.keystoreSet(key, cid); err != nil {
 		return err
 	}
-	Db.numKeys++
+	Db.currentNumEntries++
 	return nil
 }
 
@@ -118,7 +123,7 @@ func (Db *Db) Delete(key string) error {
 	if err := Db.keystoreDelete(key); err != nil {
 		return err
 	}
-	Db.numKeys--
+	Db.currentNumEntries--
 	return nil
 }
 
@@ -160,7 +165,7 @@ func (Db *Db) GetRecordFromCID(cid string) (*Record, error) {
 }
 
 // GetExplorerLink will return an IPFS explorer link for
-// a CID in the starkdb given the provided lookup key.
+// a CID in the starkDB given the provided lookup key.
 func (Db *Db) GetExplorerLink(key string) (string, error) {
 	cid, ok := Db.keystoreGet(key)
 	if !ok {

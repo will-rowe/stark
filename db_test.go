@@ -56,28 +56,30 @@ func TestIPFSclient(t *testing.T) {
 
 // TestNewDB will check database initialisation and set/get operation.
 func TestNewDB(t *testing.T) {
+	numBootstrappers := 3
+	numEntries := 1
 
 	// init the starkDB
-	starkdb, teardown, err := OpenDB(SetProject(testProject), SetLocalStorageDir(tmpDir), SetBootstrappers(DefaultBootstrappers[:3]), WithPinning())
+	starkdb, teardown, err := OpenDB(SetProject(testProject), SetLocalStorageDir(tmpDir), SetBootstrappers(DefaultBootstrappers[:numBootstrappers]), SetKeyLimit(numEntries), WithPinning())
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	// check the setup options propagated
 	if starkdb.project != strings.ReplaceAll(testProject, " ", "_") {
-		t.Fatal("starkdb's project does not match the provided one")
+		t.Fatal("starkDB's project does not match the provided one")
 	}
 	if starkdb.keystorePath != fmt.Sprintf("%s/%s", tmpDir, testProject) {
-		t.Fatalf("starkdb's keystore path does not look right: %v", starkdb.keystorePath)
+		t.Fatalf("starkDB's keystore path does not look right: %v", starkdb.keystorePath)
 	}
-	if len(starkdb.bootstrappers) != 3 {
-		t.Fatalf("starkdb does not have expected number of bootstrappers listed: %d", len(starkdb.bootstrappers))
+	if len(starkdb.bootstrappers) != numBootstrappers {
+		t.Fatalf("starkDB does not have expected number of bootstrappers listed: %d", len(starkdb.bootstrappers))
 	}
 	if !starkdb.pinning {
 		t.Fatal("IPFS node was told to pin but is not set for pinning")
 	}
 	if starkdb.announcing {
-		t.Fatal("starkdb is announcing but was not told to")
+		t.Fatal("starkDB is announcing but was not told to")
 	}
 
 	// create a record
@@ -96,7 +98,7 @@ func TestNewDB(t *testing.T) {
 		t.Fatal("Set method did not add a CID to the local keystore")
 	}
 
-	// get record back from starkdb
+	// get record back from starkDB
 	retrievedSample, err := starkdb.Get(testKey)
 	if err != nil {
 		t.Fatal(err)
@@ -106,6 +108,11 @@ func TestNewDB(t *testing.T) {
 	// try adding duplicate record
 	if err := starkdb.Set(testKey, testRecord); err == nil {
 		t.Fatal("duplicate sample was added")
+	}
+
+	// try adding a non-duplicate record
+	if err := starkdb.Set("another key", testRecord); err != ErrMaxEntriesExceeded {
+		t.Fatal("samples in starkDB exceed set limit")
 	}
 
 	// test JSON dump of metadata
@@ -131,23 +138,23 @@ func TestReopenDB(t *testing.T) {
 	}
 	defer teardown()
 
-	// range over the starkdb and check we have an entry
+	// range over the starkDB and check we have an entry
 	found := false
 	for entry := range starkdb.RangeCIDs() {
 		if entry.Error != nil {
 			t.Fatal(err)
 		}
 		if entry.Key != testKey {
-			t.Fatalf("encountered unexpected key in starkdb: %v", entry.Key)
+			t.Fatalf("encountered unexpected key in starkDB: %v", entry.Key)
 		} else {
 			found = true
 		}
 	}
 	if !found {
-		t.Fatal("RangeCIDs failed to return a starkdb entry")
+		t.Fatal("RangeCIDs failed to return a starkDB entry")
 	}
 
-	// get record back from starkdb
+	// get record back from starkDB
 	retrievedSample, err := starkdb.Get(testKey)
 	if err != nil {
 		t.Fatal(err)
@@ -165,7 +172,7 @@ func TestReopenDB(t *testing.T) {
 	if err := starkdb.Delete(testKey); err != nil {
 		t.Fatal(err)
 	}
-	if starkdb.numKeys != 0 {
+	if starkdb.currentNumEntries != 0 {
 		t.Fatal("db is not empty after delete operation on sole entry")
 	}
 }
@@ -240,7 +247,7 @@ func TestPubSub(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// add record to starkdb and announcing it
+	// add record to starkDB and announcing it
 	if err := starkdb.Set(testKey, testRecord); err != nil {
 		t.Fatal(err)
 	}

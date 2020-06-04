@@ -40,7 +40,7 @@ func init() {
 }
 
 // client is a wrapper that groups and controls access to the IPFS
-// for the starkdb.
+// for the starkDB.
 type client struct {
 	ipfs icore.CoreAPI // the exported API
 	repo repo.Repo
@@ -69,7 +69,7 @@ func (client *client) printListeners() {
 
 // newIPFSclient will initialise the IPFS client.
 //
-// The IPFS code used in starkdb is based on the IPFS as a
+// The IPFS code used in starkDB is based on the IPFS as a
 // library example (go-ipfs v0.5.0), see:
 // https://github.com/ipfs/go-ipfs/blob/2dc1f691f1bb98cadd7e7867cb924ce69f126751/docs/examples/go-ipfs-as-a-library/main.go
 //

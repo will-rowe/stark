@@ -9,16 +9,44 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
-// KeyCIDpair wraps the starkDB Key, corresponding
-// Record CID and any access error for each entry
-// in the starkDB.
-//
-// It is used by the RangeCIDs method to return a
-// copy of each entry in the starkDB.
-type KeyCIDpair struct {
-	Key   string
-	CID   string
-	Error error
+// dbMetadata is used to dump starkDB metadata to
+// JSON.
+type dbMetadata struct {
+	Project      string `json:"project"`
+	Host         string `json:"host_node"`
+	KeystorePath string `json:"keystore"`
+	Pinning      bool   `json:"pinning"`
+	Announcing   bool   `json:"announcing"`
+	MaxEntries   int    `json:"max_entries"`
+	CurrEntries  int    `json:"current_entries"`
+}
+
+// MarshalJSON is used to satisify the JSON Marshaler
+// interface for the Db but restricts data to that
+// specified by the dbMetadata struct.
+func (Db *Db) MarshalJSON() ([]byte, error) {
+	nodeID, err := Db.GetNodeIdentity()
+	if err != nil {
+		return nil, err
+	}
+	return json.Marshal(dbMetadata{
+		Db.project,
+		nodeID,
+		Db.keystorePath,
+		Db.pinning,
+		Db.announcing,
+		Db.maxEntries,
+		Db.currentNumEntries,
+	})
+}
+
+// DumpMetadata returns a JSON string of starkDB metadata.
+func (Db *Db) DumpMetadata() (string, error) {
+	b, err := json.MarshalIndent(Db, "", "    ")
+	if err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("%s\n", string(b)), nil
 }
 
 // RangeCIDs is used to iterate over all the starkDB keys
@@ -60,44 +88,6 @@ func (Db *Db) RangeCIDs() chan KeyCIDpair {
 	return returnChan
 }
 
-// dbMetadata is used to dump starkDB metadata to
-// JSON.
-type dbMetadata struct {
-	Project      string `json:"project"`
-	Host         string `json:"host_node"`
-	KeystorePath string `json:"keystore"`
-	Pinning      bool   `json:"pinning"`
-	Announcing   bool   `json:"announcing"`
-	NumKeys      int    `json:"number_of_keys"`
-}
-
-// MarshalJSON is used to satisify the JSON Marshaler
-// interface for the Db but restricts data to that
-// specified by the dbMetadata struct.
-func (Db *Db) MarshalJSON() ([]byte, error) {
-	nodeID, err := Db.GetNodeIdentity()
-	if err != nil {
-		return nil, err
-	}
-	return json.Marshal(dbMetadata{
-		Db.project,
-		nodeID,
-		Db.keystorePath,
-		Db.pinning,
-		Db.announcing,
-		Db.numKeys,
-	})
-}
-
-// DumpMetadata returns a JSON string of starkDB metadata.
-func (Db *Db) DumpMetadata() (string, error) {
-	b, err := json.MarshalIndent(Db, "", "    ")
-	if err != nil {
-		return "", err
-	}
-	return fmt.Sprintf("%s\n", string(b)), nil
-}
-
 // IsOnline returns true if the starkDB is in online mode
 // and the IPFS daemon is reachable.
 func (Db *Db) IsOnline() bool {
@@ -124,20 +114,24 @@ func (Db *Db) GetNodeIdentity() (string, error) {
 func (Db *Db) refreshCount() error {
 	Db.lock.Lock()
 	defer Db.lock.Unlock()
-	Db.numKeys = 0
+	Db.currentNumEntries = 0
 	err := Db.keystore.View(func(txn *badger.Txn) error {
 		opts := badger.DefaultIteratorOptions
 		opts.PrefetchValues = false
 		it := txn.NewIterator(opts)
 		defer it.Close()
 		for it.Rewind(); it.Valid(); it.Next() {
-			Db.numKeys++
-			//item := it.Item()
-			//k := item.Key()
+			Db.currentNumEntries++
 		}
 		return nil
 	})
-	return err
+	if err != nil {
+		return err
+	}
+	if Db.currentNumEntries > Db.maxEntries {
+		return ErrMaxEntriesExceeded
+	}
+	return nil
 }
 
 // checkDir is a function to check that a directory exists
