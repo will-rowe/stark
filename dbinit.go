@@ -39,7 +39,7 @@ func SetLocalStorageDir(path string) DbOption {
 // use for IPFS peer discovery.
 //
 // Note: a default list of bootstrappers will be used
-// if this option setter is ommitted.
+// if this option setter is omitted.
 func SetBootstrappers(bootstrapperList []string) DbOption {
 	return func(Db *Db) error {
 		return Db.setBootstrappers(bootstrapperList)
@@ -91,7 +91,7 @@ func WithAnnouncing() DbOption {
 // WithSnapshot is an option setter that opens a database
 // and then pulls in an existing database via a snapshot.
 //
-// Note: If opening an existing datbase, this will be
+// Note: If opening an existing database, this will be
 // erased in place of the snapshotted database.
 func WithSnapshot(snapshotCID string) DbOption {
 	return func(Db *Db) error {
