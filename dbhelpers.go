@@ -9,51 +9,58 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
-/*
-// RangeObject is returned from the Range method
-// for each entry in the starkDB. It contains
-// the Key, Record CID and any error.
-type RangeObject struct {
+// KeyCIDpair wraps the starkDB Key, corresponding
+// Record CID and any access error for each entry
+// in the starkDB.
+//
+// It is used by the RangeCIDs method to return a
+// copy of each entry in the starkDB.
+type KeyCIDpair struct {
 	Key   string
 	CID   string
 	Error error
 }
 
-// Range will return a channel of RangeObjects from the
-// StarkDB. Each Range object will contain a starkDB
-// key, associated Record CID and any error encountered
-// during lookup.
-func (Db *Db) Range() chan *RangeObject {
-	dataChan := make(chan *RangeObject)
-	go func() {
-		stream := Db.keystore.NewStream()
+// RangeCIDs is used to iterate over all the starkDB keys
+// and their corresponding Record CIDs.
+//
+// This method will return a channel of KeyCIDpair from the
+// StarkDB. The caller does not need to close the returned
+// channel.
+func (Db *Db) RangeCIDs() chan KeyCIDpair {
 
-		stream.Send = func(kvlist *pb.KVList) (err error) {
-			for _, kv := range kvlist.Kv {
-				k, v := kv.GetKey(), kv.GetValue()
-				if _, err = fmt.Fprintf(out, "+%d,%d:%s->", len(k), len(v), k); err != nil {
-					return err
-				}
-				if _, err := out.Write(v); err != nil {
-					return err
-				}
-				if err = out.WriteByte('\n'); err != nil {
+	// setup the channel to send key values
+	returnChan := make(chan KeyCIDpair)
+
+	// iterate over the badger key value store
+	go func() {
+		err := Db.keystore.View(func(txn *badger.Txn) error {
+			opts := badger.DefaultIteratorOptions
+			opts.PrefetchValues = false
+			it := txn.NewIterator(opts)
+			defer it.Close()
+			for it.Rewind(); it.Valid(); it.Next() {
+				item := it.Item()
+				key := item.Key()
+				err := item.Value(func(cid []byte) error {
+					returnChan <- KeyCIDpair{string(key), string(cid), nil}
+					return nil
+				})
+				if err != nil {
 					return err
 				}
 			}
 			return nil
+		})
+		if err != nil {
+			returnChan <- KeyCIDpair{"", "", err}
 		}
-
-
-		stream.Send = func(list *pb.KVList) error {
-			return proto.MarshalText(w, list) // Write to w.
-		  }
+		close(returnChan)
 	}()
-	return dataChan
+	return returnChan
 }
-*/
 
-// dbMetadata is used to dump database metadata to
+// dbMetadata is used to dump starkDB metadata to
 // JSON.
 type dbMetadata struct {
 	Project      string `json:"project"`

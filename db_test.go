@@ -121,7 +121,7 @@ func TestNewDB(t *testing.T) {
 	}
 }
 
-// TestReopenDB will check database re-opening, getting and deleting.
+// TestReopenDB will check database re-opening, ranging and deleting.
 func TestReopenDB(t *testing.T) {
 
 	// test you can reopen the starkDB
@@ -130,6 +130,22 @@ func TestReopenDB(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer teardown()
+
+	// range over the starkdb and check we have an entry
+	found := false
+	for entry := range starkdb.RangeCIDs() {
+		if entry.Error != nil {
+			t.Fatal(err)
+		}
+		if entry.Key != testKey {
+			t.Fatalf("encountered unexpected key in starkdb: %v", entry.Key)
+		} else {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatal("RangeCIDs failed to return a starkdb entry")
+	}
 
 	// get record back from starkdb
 	retrievedSample, err := starkdb.Get(testKey)
