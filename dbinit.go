@@ -64,14 +64,14 @@ func SetKeyLimit(val int) DbOption {
 	}
 }
 
-// WithPinning is an option setter that specifies the IPFS
-// node pin entries.
+// WithNoPinning is an option setter that specifies the IPFS
+// node should NOT pin entries.
 //
 // Note: If not provided to the constructor, the node will
-// not pin entries.
-func WithPinning() DbOption {
+// pin entries by default.
+func WithNoPinning() DbOption {
 	return func(Db *Db) error {
-		return Db.setPinning(true)
+		return Db.setPinning(false)
 	}
 }
 
@@ -121,7 +121,7 @@ func OpenDB(options ...DbOption) (*Db, func() error, error) {
 		project:      DefaultProject,
 		keystorePath: DefaultLocalDbLocation,
 		snapshotCID:  "",
-		pinning:      false,
+		pinning:      true,
 		announcing:   false,
 		maxEntries:   DefaultMaxEntries,
 		allowNetwork: true, // currently un-implemented
@@ -322,8 +322,8 @@ func (Db *Db) setBootstrappers(nodeList []string) error {
 	return nil
 }
 
-// setPinning sets the underlying IPFS node to
-// pin entries.
+// setPinning sets the underlying IPFS node's
+// pinning flag.
 func (Db *Db) setPinning(pin bool) error {
 	Db.pinning = pin
 	return nil

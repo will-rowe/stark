@@ -65,7 +65,7 @@ import (
 func main() {
 
 	// init a starkDB
-	db, dbCloser, err := stark.OpenDB(stark.SetProject("my project"), stark.SetLocalStorageDir("/tmp/starkdb"), stark.WithPinning())
+	db, dbCloser, err := stark.OpenDB(stark.SetProject("my project"), stark.SetLocalStorageDir("/tmp/starkdb"))
 	if err != nil {
 		panic(err)
 	}

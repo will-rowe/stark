@@ -6,7 +6,7 @@ import "fmt"
 func ExampleOpenDB() {
 
 	// init the starkDB with functional options
-	starkdb, dbCloser, err := OpenDB(SetProject("my project"), SetLocalStorageDir("/tmp/starkdb"), WithPinning())
+	starkdb, dbCloser, err := OpenDB(SetProject("my project"), SetLocalStorageDir("/tmp/starkdb"), WithAnnouncing())
 	if err != nil {
 		panic(err)
 	}
@@ -31,7 +31,7 @@ func ExampleOpenDB() {
 func ExampleRangeCIDs() {
 
 	// init the starkDB with functional options
-	starkdb, dbCloser, err := OpenDB(SetProject("my project"), SetLocalStorageDir("/tmp/starkdb"), WithPinning())
+	starkdb, dbCloser, err := OpenDB(SetProject("my project"), SetLocalStorageDir("/tmp/starkdb"), WithNoPinning())
 	if err != nil {
 		panic(err)
 	}

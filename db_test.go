@@ -60,7 +60,7 @@ func TestNewDB(t *testing.T) {
 	numEntries := 1
 
 	// init the starkDB
-	starkdb, teardown, err := OpenDB(SetProject(testProject), SetLocalStorageDir(tmpDir), SetBootstrappers(DefaultBootstrappers[:numBootstrappers]), SetKeyLimit(numEntries), WithPinning())
+	starkdb, teardown, err := OpenDB(SetProject(testProject), SetLocalStorageDir(tmpDir), SetBootstrappers(DefaultBootstrappers[:numBootstrappers]), SetKeyLimit(numEntries))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -132,7 +132,7 @@ func TestNewDB(t *testing.T) {
 func TestReopenDB(t *testing.T) {
 
 	// test you can reopen the starkDB
-	starkdb, teardown, err := OpenDB(SetProject(testProject), SetLocalStorageDir(tmpDir), WithPinning())
+	starkdb, teardown, err := OpenDB(SetProject(testProject), SetLocalStorageDir(tmpDir), WithNoPinning())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -179,7 +179,7 @@ func TestReopenDB(t *testing.T) {
 
 // TestFileIO will check a file can be added and retrieved from the IPFS.
 func TestFileIO(t *testing.T) {
-	starkdb, teardown, err := OpenDB(SetProject(testProject), SetLocalStorageDir(tmpDir), WithPinning())
+	starkdb, teardown, err := OpenDB(SetProject(testProject), SetLocalStorageDir(tmpDir), WithNoPinning())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -214,7 +214,7 @@ func TestFileIO(t *testing.T) {
 
 // TestPubSub will check registering, announcing and listening.
 func TestPubSub(t *testing.T) {
-	starkdb, teardown, err := OpenDB(SetProject(testProject), SetLocalStorageDir(tmpDir), WithPinning(), WithAnnouncing())
+	starkdb, teardown, err := OpenDB(SetProject(testProject), SetLocalStorageDir(tmpDir), WithNoPinning(), WithAnnouncing())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -268,7 +268,7 @@ func TestPubSub(t *testing.T) {
 func TestSnapshot(t *testing.T) {
 
 	// open the test database
-	starkdb, teardown, err := OpenDB(SetProject(testProject), SetLocalStorageDir(tmpDir), WithPinning(), WithAnnouncing())
+	starkdb, teardown, err := OpenDB(SetProject(testProject), SetLocalStorageDir(tmpDir), WithNoPinning(), WithAnnouncing())
 	if err != nil {
 		t.Fatal(err)
 	}
