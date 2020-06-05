@@ -25,53 +25,68 @@ import (
 
 const (
 
-	// DefaultProject is the default project name used if none provided to the OpenDB function.
-	DefaultProject = "starkDB-default-project"
+	// DefaultBufferSize is the maximum number of records stored in channels.
+	DefaultBufferSize = 42
+
+	// DefaultCipherKeyLength is the required number of bytes for a cipher key.
+	DefaultCipherKeyLength = 32
+
+	// DefaultFormat is the format of the input data for IPFS.
+	DefaultFormat = "cbor"
+
+	// DefaultIenc is the input encoding for the data will be added to the IPFS DAG.
+	DefaultIenc = "json"
 
 	// DefaultLocalDbLocation is used if the user does not provide one.
 	DefaultLocalDbLocation = "/tmp/starkDB/"
 
-	// DefaultStarkEnvVariable is the env variable starkDB looks for when told to use encryption.
-	DefaultStarkEnvVariable = "STARK_DB_ENCRYPTION_KEY"
-
-	// DefaultBufferSize is the maximum number of records stored in channels.
-	DefaultBufferSize = 42
-
-	// Ienc is the format in which the data will be added to the IPFS DAG.
-	Ienc = "json"
-
-	// Format is the format of the input data.
-	Format = "cbor"
-
-	// MhType is the hash to use for DAG put operations.
-	MhType = uint64(math.MaxUint64) // use default hash (sha256 for cbor, sha1 for git..)
-
-	// MinBootstrappers is the minimum number of reachable bootstrappers required.
-	MinBootstrappers = 3
-
 	// DefaultMaxEntries is the maximum number of keys a starkDB can hold.
 	DefaultMaxEntries = 10000
+
+	// DefaultMhType is the multihash to use for DAG put operations.
+	DefaultMhType = uint64(math.MaxUint64) // use default hash (sha256 for cbor, sha1 for git..)
+
+	// DefaultMinBootstrappers is the minimum number of reachable bootstrappers required.
+	DefaultMinBootstrappers = 3
+
+	// DefaultProject is the default project name used if none provided to the OpenDB function.
+	DefaultProject = "starkDB-default-project"
+
+	// DefaultStarkEnvVariable is the env variable starkDB looks for when told to use encryption.
+	DefaultStarkEnvVariable = "STARK_DB_PASSWORD"
 )
 
 var (
 
 	// ErrBootstrappers is issued when not enough bootstrappers are accessible.
-	ErrBootstrappers = fmt.Errorf("not enough bootstrappers found (minimum required: %d)", MinBootstrappers)
+	ErrBootstrappers = fmt.Errorf("not enough bootstrappers found (minimum required: %d)", DefaultMinBootstrappers)
 
 	// ErrDbOption is issued for incorrect database initialisation options.
 	ErrDbOption = fmt.Errorf("starkDB option could not be set")
 
-	// ErrEncryptKey is issued when the provided encyption key doesn't meet requirements.
-	ErrEncryptKey = fmt.Errorf("cannot load private key")
+	// ErrEncrypted is issued when an encryption is attempted on an encrypted Record.
+	ErrEncrypted = fmt.Errorf("data is encrypted, needs decrypt")
 
-	// ErrExistingRecord indicates a record with matching UUID is already in the IPFS and has a more recent update timestamp.
-	ErrExistingRecord = fmt.Errorf("cannot replace a record in starkDB with an older version")
+	// ErrCipherKeyMissing is issued when an encrypt/decrypt needed but we don't have a cipher key.
+	ErrCipherKeyMissing = fmt.Errorf("no cipher key provided")
+
+	// ErrCipherKeyLength is issued when a key is not long enough.
+	ErrCipherKeyLength = fmt.Errorf("cipher key must be %d bytes", DefaultCipherKeyLength)
+
+	// ErrCipherPassword is issued when a cipher key cannot be generated from the provided password.
+	ErrCipherPassword = fmt.Errorf("cannot generate cipher key from provided password")
+
+	// ErrCipherPasswordMismatch is issued when a password does not decrypt a Record.
+	ErrCipherPasswordMismatch = fmt.Errorf("provided password cannot decrypt Record")
+
+	// ErrExistingRecord indicates a Record with matching UUID is already in the IPFS and has a more recent update timestamp.
+	ErrExistingRecord = fmt.Errorf("cannot replace a Record in starkDB with an older version")
 
 	// ErrKeyNotFound is issued during a Get request when the key is not present in the local keystore.
 	ErrKeyNotFound = fmt.Errorf("key not found in the database")
 
-	// ErrLinkExists indicates a record is already linked to the provided UUID.
-	ErrLinkExists = fmt.Errorf("record already linked to the provided UUID")
+	// ErrLinkExists indicates a Record is already linked to the provided UUID.
+	ErrLinkExists = fmt.Errorf("Record already linked to the provided UUID")
 
 	// ErrMaxEntriesExceeded inidicates maximum number of entries has been exceeded by starkDB.
 	ErrMaxEntriesExceeded = fmt.Errorf("maximum number of entries exceeded by starkDB")
@@ -92,7 +107,7 @@ var (
 	ErrNodeOnline = fmt.Errorf("IPFS node is online")
 
 	// ErrNoEnvSet is issued when no env variable is found.
-	ErrNoEnvSet = fmt.Errorf("no private key found in %s", DefaultStarkEnvVariable)
+	ErrNoEnvSet = fmt.Errorf("no %s environment variable found", DefaultStarkEnvVariable)
 
 	// ErrNoPeerID indicates the IPFS node has no peer ID.
 	ErrNoPeerID = fmt.Errorf("no PeerID listed for the current IPFS node")
@@ -138,10 +153,10 @@ type Db struct {
 	pinning       bool           // if true, IPFS IO will be done with pinning
 	announcing    bool           // if true, new records added to the IPFS will be broadcast on the pubsub topic for this project
 	maxEntries    int            // the maximum number of keys a starkDB instance can hold
+	cipherKey     []byte         // cipher key for encrypted DB instances
 
 	// not yet implemented:
-	allowNetwork bool   // controls the IPFS node's network connection // TODO: not yet implemented (thinking of local dbs)
-	privateKey   []byte // private key for encrypted DB instances // TODO: not yet implemented (thinking of encrypted dbs)
+	allowNetwork bool // controls the IPFS node's network connection // TODO: not yet implemented (thinking of local dbs)
 
 	// local storage
 	keystore          *badger.DB // local keystore to relate record UUIDs to IPFS CIDs

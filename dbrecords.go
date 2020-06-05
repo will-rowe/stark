@@ -101,6 +101,54 @@ func (x *Record) GetCreatedTimestamp() *timestamp.Timestamp {
 	return x.GetHistory()[0].Timestamp
 }
 
+// Encrypt will encrypt certain fields of a Record.
+//
+// Note: Currently only the Record UUID is encrypted.
+func (x *Record) Encrypt(cipherKey []byte) error {
+	if x.Encrypted {
+		return ErrEncrypted
+	}
+
+	// encrypt the UUID
+	encField, err := encrypt(x.Uuid, cipherKey)
+	if err != nil {
+		return err
+	}
+	x.Uuid = encField
+
+	// TODO: encrypt other fields
+
+	// set the Record to encrypted
+	x.Encrypted = true
+	x.AddComment("encrypted record.")
+	return nil
+}
+
+// Decrypt will decrypt certain fields of a Record.
+// Unencrypted Records are ignored and errors are
+// reported for unsuccesful decrypts.
+//
+// Note: Currently only the Record UUID is decrypted.
+func (x *Record) Decrypt(cipherKey []byte) error {
+	if !x.Encrypted {
+		return nil
+	}
+
+	// decrypt the UUID
+	decField, err := decrypt(x.Uuid, cipherKey)
+	if err != nil {
+		return err
+	}
+	x.Uuid = decField
+
+	// TODO: decrypt other fields
+
+	// set the Record to decrypted
+	x.Encrypted = false
+	x.AddComment("decrypted record.")
+	return nil
+}
+
 // GetLastUpdatedTimestamp returns the timestamp for when the record was created.
 func (x *Record) GetLastUpdatedTimestamp() *timestamp.Timestamp {
 	histLength := len(x.GetHistory())

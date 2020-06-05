@@ -2,7 +2,6 @@ package stark
 
 import (
 	"context"
-	"encoding/hex"
 	"fmt"
 	"os"
 	"strings"
@@ -43,15 +42,6 @@ func SetLocalStorageDir(path string) DbOption {
 func SetBootstrappers(bootstrapperList []string) DbOption {
 	return func(Db *Db) error {
 		return Db.setBootstrappers(bootstrapperList)
-	}
-}
-
-// SetEncryption is an option setter for the OpenDB constructor
-// that tells starkDB to make encrypted writes to IPFS using the
-// private key in STARK_DB_ENCRYPTION_KEY env variable.
-func SetEncryption(val bool) DbOption {
-	return func(Db *Db) error {
-		return Db.setEncryption(val)
 	}
 }
 
@@ -99,6 +89,18 @@ func WithSnapshot(snapshotCID string) DbOption {
 	}
 }
 
+// WithEncryption is an option setter for the OpenDB constructor
+// that tells starkDB to make encrypted writes to IPFS using the
+// password in STARK_DB_PASSWORD env variable.
+//
+// Note: If existing Records were encrypted, Get operations will
+// fail unless this option is set.
+func WithEncryption() DbOption {
+	return func(Db *Db) error {
+		return Db.setEncryption(true)
+	}
+}
+
 // OpenDB opens a new instance of a starkDB.
 //
 // If there is an existing database in the specified local
@@ -124,6 +126,7 @@ func OpenDB(options ...DbOption) (*Db, func() error, error) {
 		pinning:      true,
 		announcing:   false,
 		maxEntries:   DefaultMaxEntries,
+		cipherKey:    nil,
 		allowNetwork: true, // currently un-implemented
 	}
 
@@ -253,7 +256,7 @@ func (Db *Db) setBootstrappers(nodeList []string) error {
 	if err != nil {
 		return err
 	}
-	if len(addresses) < MinBootstrappers {
+	if len(addresses) < DefaultMinBootstrappers {
 		return ErrBootstrappers
 	}
 	Db.bootstrappers = addresses
@@ -277,26 +280,25 @@ func (Db *Db) setAnnouncing(announcing bool) error {
 // setEncryption tells starkDB to make encrypted
 // writes.
 func (Db *Db) setEncryption(val bool) error {
+	if val == false {
+		Db.cipherKey = nil
+		return nil
+	}
 
 	// check for the env variable
-	encryptKey, exists := os.LookupEnv(DefaultStarkEnvVariable)
+	password, exists := os.LookupEnv(DefaultStarkEnvVariable)
 	if !exists {
 		return ErrNoEnvSet
 	}
 
-	// get the key
-	key, err := hex.DecodeString(encryptKey)
+	// convert password to cipher key
+	cipherKey, err := password2cipherkey(password)
 	if err != nil {
-		return errors.Wrap(err, ErrEncryptKey.Error())
-	}
-
-	// check key is correct length
-	if len(key) != 32 {
-		return errors.Wrap(fmt.Errorf("encrypt key must be 32 bytes"), ErrEncryptKey.Error())
+		return err
 	}
 
 	// set the key
-	Db.privateKey = key
+	Db.cipherKey = cipherKey
 	return nil
 }
 

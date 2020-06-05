@@ -307,6 +307,75 @@ func TestSnapshot(t *testing.T) {
 
 }
 
+// TestEncyption will test the Record encryption.
+func TestEncyption(t *testing.T) {
+
+	// set a dummy encyption key
+	if err := os.Setenv("STARK_DB_PASSWORD", "dummy password"); err != nil {
+		t.Fatal(err)
+	}
+
+	// open the db with encryption
+	starkdb, teardown, err := OpenDB(SetProject(testProject), SetLocalStorageDir(tmpDir), WithEncryption())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if starkdb.cipherKey == nil {
+		t.Fatal("encyprted db has no private key set")
+	}
+
+	// check a Record Set with encryption
+	testRecord, err := NewRecord(SetAlias(testAlias))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := starkdb.Set(testKey, testRecord); err != nil {
+		t.Fatal(err)
+	}
+
+	// close the DB and open unencrypted version
+	if err := teardown(); err != nil {
+		t.Fatal(err)
+	}
+
+	// check encrypted records can't be Getted by db with no encyption key
+	starkdb, teardown, err = OpenDB(SetProject(testProject), SetLocalStorageDir(tmpDir))
+	if err != nil {
+		t.Fatal(err)
+	}
+	retrievedRec, err := starkdb.Get(testKey)
+	if err != ErrCipherKeyMissing {
+		t.Fatal("retrieved and decypted an encrypted record via a db with no cipher key")
+	}
+
+	// close the DB and open encrypted version
+	if err := teardown(); err != nil {
+		t.Fatal(err)
+	}
+	starkdb, teardown, err = OpenDB(SetProject(testProject), SetLocalStorageDir(tmpDir), WithEncryption())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer teardown()
+	retrievedRec, err = starkdb.Get(testKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// retrieved record will have been decrypted via Get, check against original encrypted record
+	if retrievedRec.GetUuid() == testRecord.GetUuid() {
+		t.Fatal("original record was not encrypted")
+	}
+
+	// now decrypt original record - should match retrieved
+	if err := testRecord.Decrypt(starkdb.cipherKey); err != nil {
+		t.Fatal(err)
+	}
+	if retrievedRec.GetUuid() != testRecord.GetUuid() {
+		t.Fatal("original record was not encrypted")
+	}
+}
+
 // TestCleanup will cleanup the test tmp files.
 func TestCleanup(t *testing.T) {
 	if err := os.RemoveAll(tmpDir); err != nil {

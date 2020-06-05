@@ -56,6 +56,13 @@ func (Db *Db) Set(key string, record *Record) error {
 	}
 	record.AddComment("Set: adding record to IPFS.")
 
+	// if encrypting requested and Record isn't already, do it now
+	if len(Db.cipherKey) != 0 && !record.GetEncrypted() {
+		if err := record.Encrypt(Db.cipherKey); err != nil {
+			return err
+		}
+	}
+
 	// marshal Record data to JSON
 	jsonData, err := json.Marshal(record)
 	if err != nil {
@@ -159,6 +166,13 @@ func (Db *Db) GetRecordFromCID(cid string) (*Record, error) {
 		return nil, err
 	}
 
+	// if it's an encrypted Record, see if we can decrypt
+	if record.GetEncrypted() {
+		if err := record.Decrypt(Db.cipherKey); err != nil {
+			return nil, err
+		}
+	}
+
 	// add the pulled CID to this record
 	record.PreviousCID = cid
 	return record, nil
@@ -209,7 +223,7 @@ func (Db *Db) dagPut(data []byte) (string, error) {
 	}
 
 	//
-	nds, err := coredag.ParseInputs(Ienc, Format, file, MhType, -1)
+	nds, err := coredag.ParseInputs(DefaultIenc, DefaultFormat, file, DefaultMhType, -1)
 	if err != nil {
 		return "", err
 	}
