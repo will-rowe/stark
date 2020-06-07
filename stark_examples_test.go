@@ -81,7 +81,7 @@ func ExampleListen() {
 		case err := <-errs:
 
 			// error handling
-			fmt.Printf("received error whilst processing PubSub message: %w", err)
+			fmt.Printf("received error whilst processing PubSub message: %v", err)
 			break
 		}
 		close(terminator)
