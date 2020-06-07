@@ -2,7 +2,6 @@ package stark
 
 import (
 	"fmt"
-	"log"
 )
 
 // ExampleOpenDB documents the usage of OpenDB.
@@ -77,12 +76,12 @@ func ExampleListen() {
 		select {
 		case rec := <-recs:
 			// record handling
-			log.Printf("received Record from another DB: %v", rec.GetAlias())
+			fmt.Printf("received Record from another DB: %v", rec.GetAlias())
 
 		case err := <-errs:
 
 			// error handling
-			log.Printf("received error whilst processing PubSub message: %w", err)
+			fmt.Printf("received error whilst processing PubSub message: %w", err)
 			break
 		}
 		close(terminator)
