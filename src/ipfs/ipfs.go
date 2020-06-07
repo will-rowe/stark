@@ -180,6 +180,9 @@ func NewIPFSclient(ctx context.Context, bootstrappers []string) (*Client, error)
 
 	// bootstrap the node
 	adds, err := setupBootstrappers(bootstrappers)
+	if err != nil {
+		return nil, err
+	}
 	addrInfos, err := peer.AddrInfosFromP2pAddrs(adds...)
 	if err != nil {
 		return nil, err

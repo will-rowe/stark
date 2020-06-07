@@ -127,7 +127,7 @@ func (x *Record) Encrypt(cipherKey []byte) error {
 
 // Decrypt will decrypt certain fields of a Record.
 // Unencrypted Records are ignored and errors are
-// reported for unsuccesful decrypts.
+// reported for unsuccessful decrypts.
 //
 // Note: Currently only the Record UUID is decrypted.
 func (x *Record) Decrypt(cipherKey []byte) error {

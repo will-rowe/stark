@@ -72,12 +72,22 @@ func ExampleListen() {
 		panic(err)
 	}
 
-	// defer termination
-	defer close(terminator)
+	// process the listener channels in a Go routine
+	go func() {
+		select {
+		case rec := <-recs:
+			// record handling
+			log.Printf("received Record from another DB: %v", rec.GetAlias())
 
-	// process any received Records
-	for rec := range recs {
-		log.Printf("received Record from another DB: %v", rec.GetAlias())
-	}
+		case err := <-errs:
+
+			// error handling
+			log.Printf("received error whilst processing PubSub message: %w", err)
+			break
+		}
+		close(terminator)
+	}()
+
+	// add additional processing here
 
 }

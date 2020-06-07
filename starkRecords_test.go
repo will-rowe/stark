@@ -26,7 +26,7 @@ func TestRecord(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// encrpyt
+	// encrypt
 	if err := rec.Encrypt(cipherKey); err != nil {
 		t.Fatal(err)
 	}
