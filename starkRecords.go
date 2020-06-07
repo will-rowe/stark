@@ -6,6 +6,7 @@ import (
 	"github.com/golang/protobuf/ptypes"
 	"github.com/golang/protobuf/ptypes/timestamp"
 	"github.com/google/uuid"
+	starkcrypto "github.com/will-rowe/stark/src/crypto"
 )
 
 // SetAlias is an option setter for the NewRecord constructor
@@ -110,7 +111,7 @@ func (x *Record) Encrypt(cipherKey []byte) error {
 	}
 
 	// encrypt the UUID
-	encField, err := encrypt(x.Uuid, cipherKey)
+	encField, err := starkcrypto.Encrypt(x.Uuid, cipherKey)
 	if err != nil {
 		return err
 	}
@@ -135,7 +136,7 @@ func (x *Record) Decrypt(cipherKey []byte) error {
 	}
 
 	// decrypt the UUID
-	decField, err := decrypt(x.Uuid, cipherKey)
+	decField, err := starkcrypto.Decrypt(x.Uuid, cipherKey)
 	if err != nil {
 		return err
 	}

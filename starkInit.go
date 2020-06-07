@@ -8,6 +8,9 @@ import (
 
 	"github.com/dgraph-io/badger"
 	"github.com/pkg/errors"
+
+	starkcrypto "github.com/will-rowe/stark/src/crypto"
+	starkipfs "github.com/will-rowe/stark/src/ipfs"
 )
 
 // SetProject is an option setter for the OpenDB
@@ -120,14 +123,15 @@ func OpenDB(options ...DbOption) (*Db, func() error, error) {
 		ctxCancel: cancel,
 
 		// defaults
-		project:      DefaultProject,
-		keystorePath: DefaultLocalDbLocation,
-		snapshotCID:  "",
-		pinning:      true,
-		announcing:   false,
-		maxEntries:   DefaultMaxEntries,
-		cipherKey:    nil,
-		allowNetwork: true, // currently un-implemented
+		project:       DefaultProject,
+		keystorePath:  DefaultLocalDbLocation,
+		snapshotCID:   "",
+		pinning:       true,
+		announcing:    false,
+		maxEntries:    DefaultMaxEntries,
+		cipherKey:     nil,
+		bootstrappers: starkipfs.DefaultBootstrappers,
+		allowNetwork:  true, // currently un-implemented
 	}
 
 	// add the provided options
@@ -138,20 +142,11 @@ func OpenDB(options ...DbOption) (*Db, func() error, error) {
 		}
 	}
 
-	// add in the default bootstrappers if none were provided
-	if starkDB.bootstrappers == nil {
-		addresses, err := setupBootstrappers(DefaultBootstrappers)
-		if err != nil {
-			return nil, nil, err
-		}
-		starkDB.bootstrappers = addresses
-	}
-
 	// now update the keystorePath variable to point to the requested project
 	starkDB.keystorePath = fmt.Sprintf("%s/%s", starkDB.keystorePath, starkDB.project)
 
 	// init the IPFS client
-	client, err := newIPFSclient(starkDB.ctx, starkDB.bootstrappers)
+	client, err := starkipfs.NewIPFSclient(starkDB.ctx, starkDB.bootstrappers)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -164,7 +159,7 @@ func OpenDB(options ...DbOption) (*Db, func() error, error) {
 		if err := os.RemoveAll(starkDB.keystorePath); err != nil {
 			return nil, nil, err
 		}
-		if err := starkDB.getFile(starkDB.snapshotCID, starkDB.keystorePath); err != nil {
+		if err := starkDB.ipfsClient.GetFile(starkDB.ctx, starkDB.snapshotCID, starkDB.keystorePath); err != nil {
 			return nil, nil, err
 		}
 	}
@@ -201,7 +196,7 @@ func (Db *Db) teardown() error {
 	Db.ctxCancel()
 
 	// close IPFS
-	if err := Db.ipfsClient.endSession(); err != nil {
+	if err := Db.ipfsClient.EndSession(); err != nil {
 		return err
 	}
 
@@ -249,17 +244,10 @@ func (Db *Db) setLocalStorage(path string) error {
 // setBootstrappers will set the bootstrapper nodes
 // to use for IPFS peer discovery.
 func (Db *Db) setBootstrappers(nodeList []string) error {
-	if len(nodeList) == 0 {
-		return fmt.Errorf("no bootstrapper nodes provided")
-	}
-	addresses, err := setupBootstrappers(nodeList)
-	if err != nil {
-		return err
-	}
-	if len(addresses) < DefaultMinBootstrappers {
+	if len(nodeList) < DefaultMinBootstrappers {
 		return ErrBootstrappers
 	}
-	Db.bootstrappers = addresses
+	Db.bootstrappers = nodeList
 	return nil
 }
 
@@ -292,7 +280,7 @@ func (Db *Db) setEncryption(val bool) error {
 	}
 
 	// convert password to cipher key
-	cipherKey, err := password2cipherkey(password)
+	cipherKey, err := starkcrypto.Password2cipherkey(password)
 	if err != nil {
 		return err
 	}

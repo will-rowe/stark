@@ -2,25 +2,30 @@
 Sequence Recording And Record Keeping.
 
 It is both a library and a Command Line Utility for running
-and interacting with **stark databases**.
+and interacting with `stark databases`.
 
 Features include:
 
 - snapshot and sync entire databases over the IPFS
+
 - use PubSub messaging to share and collect data records as they are created
+
 - track record history and rollback revisions (rollback feature WIP)
+
 - attach and sync files to records (WIP)
-- encrypt record fields*/
+
+- encrypt record fields
+
+///////////////////////////////////////////////////////////////////////////////*/
 package stark // import "github.com/will-rowe/stark"
 
 import (
 	"context"
 	"fmt"
-	"math"
 	"sync"
 
-	"github.com/dgraph-io/badger" // Db is the starkDB database.
-	ma "github.com/multiformats/go-multiaddr"
+	"github.com/dgraph-io/badger"
+	starkipfs "github.com/will-rowe/stark/src/ipfs"
 )
 
 const (
@@ -28,23 +33,11 @@ const (
 	// DefaultBufferSize is the maximum number of records stored in channels.
 	DefaultBufferSize = 42
 
-	// DefaultCipherKeyLength is the required number of bytes for a cipher key.
-	DefaultCipherKeyLength = 32
-
-	// DefaultFormat is the format of the input data for IPFS.
-	DefaultFormat = "cbor"
-
-	// DefaultIenc is the input encoding for the data will be added to the IPFS DAG.
-	DefaultIenc = "json"
-
 	// DefaultLocalDbLocation is used if the user does not provide one.
 	DefaultLocalDbLocation = "/tmp/starkDB/"
 
 	// DefaultMaxEntries is the maximum number of keys a starkDB can hold.
 	DefaultMaxEntries = 10000
-
-	// DefaultMhType is the multihash to use for DAG put operations.
-	DefaultMhType = uint64(math.MaxUint64) // use default hash (sha256 for cbor, sha1 for git..)
 
 	// DefaultMinBootstrappers is the minimum number of reachable bootstrappers required.
 	DefaultMinBootstrappers = 3
@@ -66,15 +59,6 @@ var (
 
 	// ErrEncrypted is issued when an encryption is attempted on an encrypted Record.
 	ErrEncrypted = fmt.Errorf("data is encrypted, needs decrypt")
-
-	// ErrCipherKeyMissing is issued when an encrypt/decrypt needed but we don't have a cipher key.
-	ErrCipherKeyMissing = fmt.Errorf("no cipher key provided")
-
-	// ErrCipherKeyLength is issued when a key is not long enough.
-	ErrCipherKeyLength = fmt.Errorf("cipher key must be %d bytes", DefaultCipherKeyLength)
-
-	// ErrCipherPassword is issued when a cipher key cannot be generated from the provided password.
-	ErrCipherPassword = fmt.Errorf("cannot generate cipher key from provided password")
 
 	// ErrCipherPasswordMismatch is issued when a password does not decrypt a Record.
 	ErrCipherPasswordMismatch = fmt.Errorf("provided password cannot decrypt Record")
@@ -117,26 +101,6 @@ var (
 
 	// ErrNoSub indicates the IPFS node is not registered for PubSub.
 	ErrNoSub = fmt.Errorf("IPFS node has no topic registered for PubSub")
-
-	// DefaultBootstrappers are nodes used for IPFS peer discovery.
-	DefaultBootstrappers = []string{
-
-		// IPFS bootstrapper nodes
-		"/dnsaddr/bootstrap.libp2p.io/p2p/QmNnooDu7bfjPFoTZYxMNLWUQJyrVwtbZg5gBMjTezGAJN",
-		"/dnsaddr/bootstrap.libp2p.io/p2p/QmQCU2EcMqAqQPR2i9bChDtGNJchTbq5TbXJJ16u19uLTa",
-		"/dnsaddr/bootstrap.libp2p.io/p2p/QmbLHAnMoJPWSCR5Zhtx6BHJX9KiKNN6tpvbUcqanj75Nb",
-		"/dnsaddr/bootstrap.libp2p.io/p2p/QmcZf59bWwK5XFi76CZX8cbJ4BhTzzA3gU1ZjYZcYW3dwt",
-
-		// IPFS cluster pinning nodes
-		"/ip4/138.201.67.219/tcp/4001/p2p/QmUd6zHcbkbcs7SMxwLs48qZVX3vpcM8errYS7xEczwRMA",
-		"/ip4/138.201.67.219/udp/4001/quic/p2p/QmUd6zHcbkbcs7SMxwLs48qZVX3vpcM8errYS7xEczwRMA",
-		"/ip4/138.201.67.220/tcp/4001/p2p/QmNSYxZAiJHeLdkBg38roksAR9So7Y5eojks1yjEcUtZ7i",
-		"/ip4/138.201.67.220/udp/4001/quic/p2p/QmNSYxZAiJHeLdkBg38roksAR9So7Y5eojks1yjEcUtZ7i",
-		"/ip4/138.201.68.74/tcp/4001/p2p/QmdnXwLrC8p1ueiq2Qya8joNvk3TVVDAut7PrikmZwubtR",
-		"/ip4/138.201.68.74/udp/4001/quic/p2p/QmdnXwLrC8p1ueiq2Qya8joNvk3TVVDAut7PrikmZwubtR",
-		"/ip4/94.130.135.167/tcp/4001/p2p/QmUEMvxS2e7iDrereVYc5SWPauXPyNwxcy9BXZrC1QTcHE",
-		"/ip4/94.130.135.167/udp/4001/quic/p2p/QmUEMvxS2e7iDrereVYc5SWPauXPyNwxcy9BXZrC1QTcHE",
-	}
 )
 
 // Db is the starkDB database.
@@ -146,14 +110,14 @@ type Db struct {
 	ctxCancel context.CancelFunc
 
 	// user-defined settings
-	project       string         // the project which the database instance is managing
-	keystorePath  string         // local keystore location
-	bootstrappers []ma.Multiaddr // list of addresses to use for IPFS peer discovery
-	snapshotCID   string         // the optional snapshot CID provided during database opening
-	pinning       bool           // if true, IPFS IO will be done with pinning
-	announcing    bool           // if true, new records added to the IPFS will be broadcast on the pubsub topic for this project
-	maxEntries    int            // the maximum number of keys a starkDB instance can hold
-	cipherKey     []byte         // cipher key for encrypted DB instances
+	project       string   // the project which the database instance is managing
+	keystorePath  string   // local keystore location
+	bootstrappers []string // list of addresses to use for IPFS peer discovery
+	snapshotCID   string   // the optional snapshot CID provided during database opening
+	pinning       bool     // if true, IPFS IO will be done with pinning
+	announcing    bool     // if true, new records added to the IPFS will be broadcast on the pubsub topic for this project
+	maxEntries    int      // the maximum number of keys a starkDB instance can hold
+	cipherKey     []byte   // cipher key for encrypted DB instances
 
 	// not yet implemented:
 	allowNetwork bool // controls the IPFS node's network connection // TODO: not yet implemented (thinking of local dbs)
@@ -163,7 +127,7 @@ type Db struct {
 	currentNumEntries int        // the number of keys in the keystore (checked on db open and then incremented/decremented during Set/Delete ops)
 
 	// IPFS
-	ipfsClient *client // wraps the IPFS core API, node and PubSub channels
+	ipfsClient *starkipfs.Client // wraps the IPFS core API, node and PubSub channels
 }
 
 // DbOption is a wrapper struct used to pass functional

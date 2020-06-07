@@ -1,6 +1,9 @@
 package stark
 
-import "fmt"
+import (
+	"fmt"
+	"log"
+)
 
 // ExampleOpenDB documents the usage of OpenDB.
 func ExampleOpenDB() {
@@ -46,4 +49,35 @@ func ExampleRangeCIDs() {
 		}
 		fmt.Printf("key: %s, value: %s\n", entry.Key, entry.CID)
 	}
+}
+
+// ExampleListen documents the usage of Listen.
+func ExampleListen() {
+
+	// init the starkDB with functional options
+	starkdb, dbCloser, err := OpenDB(SetProject("my project"), SetLocalStorageDir("/tmp/starkdb"))
+	if err != nil {
+		panic(err)
+	}
+
+	// defer the database closer
+	defer dbCloser()
+
+	// create a terminator for the listener
+	terminator := make(chan struct{})
+
+	// start the listener
+	recs, errs, err := starkdb.Listen(terminator)
+	if err != nil {
+		panic(err)
+	}
+
+	// defer termination
+	defer close(terminator)
+
+	// process any received Records
+	for rec := range recs {
+		log.Printf("received Record from another DB: %v", rec.GetAlias())
+	}
+
 }

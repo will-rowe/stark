@@ -3,10 +3,8 @@ package stark
 import (
 	"encoding/json"
 	"fmt"
-	"os"
 
 	"github.com/dgraph-io/badger"
-	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 // dbMetadata is used to dump starkDB metadata to
@@ -47,26 +45,6 @@ func (Db *Db) DumpMetadata() (string, error) {
 		return "", err
 	}
 	return fmt.Sprintf("%s\n", string(b)), nil
-}
-
-// IsOnline returns true if the starkDB is in online mode
-// and the IPFS daemon is reachable.
-func (Db *Db) IsOnline() bool {
-	return Db.ipfsClient.node.IsOnline && Db.allowNetwork
-}
-
-// GetNodeIdentity returns the PeerID of the underlying IPFS
-// node for the starkDB instance.
-func (Db *Db) GetNodeIdentity() (string, error) {
-	Db.lock.Lock()
-	defer Db.lock.Unlock()
-	if !Db.IsOnline() {
-		return "", ErrNodeOffline
-	}
-	if len(Db.ipfsClient.node.Identity) == 0 {
-		return "", ErrNoPeerID
-	}
-	return Db.ipfsClient.node.Identity.Pretty(), nil
 }
 
 // RangeCIDs is used to iterate over all the starkDB keys
@@ -122,7 +100,7 @@ func (Db *Db) Listen(terminator chan struct{}) (chan *Record, chan error, error)
 	}
 
 	// subscribe the node to the starkDB project
-	if err := Db.ipfsClient.subscribe(Db.ctx, Db.project); err != nil {
+	if err := Db.ipfsClient.Subscribe(Db.ctx, Db.project); err != nil {
 		return nil, nil, err
 	}
 
@@ -137,7 +115,7 @@ func (Db *Db) Listen(terminator chan struct{}) (chan *Record, chan error, error)
 	go func() {
 		for {
 			select {
-			case msg := <-Db.ipfsClient.pubsubMessages:
+			case msg := <-Db.ipfsClient.GetPSMchan():
 
 				// TODO: check sender peerID
 				//msg.From()
@@ -162,11 +140,11 @@ func (Db *Db) Listen(terminator chan struct{}) (chan *Record, chan error, error)
 					recChan <- collectedRecord
 				}
 
-			case err := <-Db.ipfsClient.pubsubErrors:
+			case err := <-Db.ipfsClient.GetPSEchan():
 				errChan <- err
 
 			case <-terminator:
-				if err := Db.ipfsClient.unsubscribe(); err != nil {
+				if err := Db.ipfsClient.Unsubscribe(); err != nil {
 					errChan <- err
 				}
 				close(recChan)
@@ -187,7 +165,29 @@ func (Db *Db) publishAnnouncement(message []byte) error {
 	if len(Db.project) == 0 {
 		return ErrNoProject
 	}
-	return Db.ipfsClient.ipfs.PubSub().Publish(Db.ctx, Db.project, message)
+	return Db.ipfsClient.SendMessage(Db.ctx, Db.project, message)
+}
+
+// IsOnline returns true if the starkDB is in online mode
+// and the IPFS daemon is reachable.
+// TODO: this needs some more work.
+func (Db *Db) IsOnline() bool {
+	return Db.ipfsClient.Online() && Db.allowNetwork
+}
+
+// GetNodeIdentity returns the PeerID of the underlying IPFS
+// node for the starkDB instance.
+func (Db *Db) GetNodeIdentity() (string, error) {
+	Db.lock.Lock()
+	defer Db.lock.Unlock()
+	if !Db.IsOnline() {
+		return "", ErrNodeOffline
+	}
+	id := Db.ipfsClient.PrintNodeID()
+	if len(id) == 0 {
+		return "", ErrNoPeerID
+	}
+	return id, nil
 }
 
 // refreshCount will clear the record counter and then
@@ -214,46 +214,4 @@ func (Db *Db) refreshCount() error {
 		return ErrMaxEntriesExceeded
 	}
 	return nil
-}
-
-// checkDir is a function to check that a directory exists
-func checkDir(dir string) error {
-	if dir == "" {
-		return fmt.Errorf("no directory specified")
-	}
-	if _, err := os.Stat(dir); err != nil {
-		if os.IsNotExist(err) {
-			return fmt.Errorf("directory does not exist: %v", dir)
-		}
-		return fmt.Errorf("can't access adirectory (check permissions): %v", dir)
-	}
-	return nil
-}
-
-// checkFile is a function to check that a file can be read
-func checkFile(file string) error {
-	fi, err := os.Stat(file)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return fmt.Errorf("file does not exist: %v", file)
-		}
-		return fmt.Errorf("can't access file (check permissions): %v", file)
-	}
-	if fi.Size() == 0 {
-		return fmt.Errorf("file appears to be empty: %v", file)
-	}
-	return nil
-}
-
-// checkTimeStamp will return true if the new protobuf timestamp is more recent than the old one.
-func checkTimeStamp(old, new *timestamppb.Timestamp) bool {
-	if old.GetSeconds() > new.GetSeconds() {
-		return false
-	}
-	if old.GetSeconds() == new.GetSeconds() {
-		if old.GetNanos() >= new.GetNanos() {
-			return false
-		}
-	}
-	return true
 }

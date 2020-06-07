@@ -2,6 +2,8 @@ package stark
 
 import (
 	"testing"
+
+	starkcrypto "github.com/will-rowe/stark/src/crypto"
 )
 
 // TestRecord tests the record constructor and the UUID field encryption.
@@ -19,7 +21,7 @@ func TestRecord(t *testing.T) {
 	originalUUID := rec.GetUuid()
 
 	// get a cipher key
-	cipherKey, err := password2cipherkey("some password")
+	cipherKey, err := starkcrypto.Password2cipherkey("some password")
 	if err != nil {
 		t.Fatal(err)
 	}

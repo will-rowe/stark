@@ -1,4 +1,4 @@
-package stark
+package crypto
 
 import (
 	"testing"
@@ -11,10 +11,10 @@ var (
 
 // TestCipherKey will test the key generator.
 func TestCipherKey(t *testing.T) {
-	if _, err := password2cipherkey(password); err != nil {
+	if _, err := Password2cipherkey(password); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := password2cipherkey(""); err == nil {
+	if _, err := Password2cipherkey(""); err == nil {
 		t.Fatal("generated cipher key from empty password")
 	}
 }
@@ -23,19 +23,19 @@ func TestCipherKey(t *testing.T) {
 func TestEncryption(t *testing.T) {
 
 	// get the cipher key
-	key, err := password2cipherkey(password)
+	key, err := Password2cipherkey(password)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	// test encryption
-	eData, err := encrypt(data, key)
+	eData, err := Encrypt(data, key)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	// test decryption
-	dData, err := decrypt(eData, key)
+	dData, err := Decrypt(eData, key)
 	if err != nil {
 		t.Fatal(err)
 	}

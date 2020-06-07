@@ -50,10 +50,6 @@ go get -d github.com/will-rowe/stark
 
 ```Go
 // This basic program will create a new database, add a record to it and then retrieve a copy of that record.
-//
-// You can compile and run this example from within the repo:
-//   go run examples/database/main.go
-//
 package main
 
 import (
@@ -136,3 +132,10 @@ View the [Go Documentation](https://pkg.go.dev/github.com/will-rowe/stark) site 
 - even though schema is in protobuf, most of the time it's marshaling to JSON to pass stuff around
 - Record methods are not threadsafe - the database passes around copies of Records so this isn't much of an issue atm. The idea is that users of the library will end up turning Record data into something more usable and won't operate on them after initial Set/Gets
 - Encryption is a WIP, currently only a Record's UUID will be encrypted as a proof of functionality. Encrypted Records are decrypted on retrieval, but this will fail if the database instance requesting them doesn't have the correct password.
+
+## Notes to future me
+
+- have separated out packages now
+- I want to unexport ipfs field of Client - this means making more methods
+- ideally, take all the IO from dbio.go and put that into Client methods
+- then I can streamline the remaining dbXXX.go files
