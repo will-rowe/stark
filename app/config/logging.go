@@ -10,6 +10,6 @@ import (
 func StartLog(cmd string) {
 	log.Info("----------------STARK----------------")
 	log.Info("starting...")
-	log.Info("\tcommand:\t", cmd)
-	log.Info("\tconfig:\t", viper.ConfigFileUsed())
+	log.Infof("\tcommand: %v", cmd)
+	log.Infof("\tconfig: %v", viper.ConfigFileUsed())
 }

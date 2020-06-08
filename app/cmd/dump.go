@@ -64,15 +64,19 @@ func runDump(projectName string) {
 		log.Fatal(err)
 	}
 
+	// defer close of the db
+	defer func() {
+		if err := dbCloser(); err != nil {
+			log.Fatal(err)
+		}
+	}()
+
 	// dump the db metadata
 	json, err := db.DumpMetadata()
 	if err != nil {
 		log.Fatal(err)
 	}
 
+	// print the json
 	fmt.Println(json)
-
-	if err := dbCloser(); err != nil {
-		log.Fatal(err)
-	}
 }

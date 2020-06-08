@@ -40,3 +40,67 @@ var collectCmd = &cobra.Command{
 func init() {
 	rootCmd.AddCommand(collectCmd)
 }
+
+func runCollect() {
+
+	/*
+
+		// subscribe to the requested project
+		log.Info("subscribing the node...")
+		if err := node.Subscribe(ctx, viper.GetString("project")); err != nil {
+			log.Fatal(err)
+		}
+		defer func() {
+			if err := node.Unsubscribe(); err != nil {
+				log.Fatal(err)
+			}
+		}()
+		log.Infof("\tlistening for: %v", viper.GetString("project"))
+
+		// setup the pubsub listener
+		msgChan := make(chan *ipfs.Message)
+		errChan := make(chan error, 1)
+		sigChan := make(chan struct{})
+		go node.Listen(msgChan, errChan, sigChan)
+
+		// catch the os interupt for graceful close down
+		c := make(chan os.Signal, 2)
+		signal.Notify(c, os.Interrupt, syscall.SIGTERM)
+		go func() {
+
+			// wait for interupt
+			<-c
+			log.Info("interrupt received - shutting down")
+
+			// quit the PubSub listener
+			close(sigChan)
+			os.Exit(0)
+		}()
+
+		// process incoming messages
+		for {
+			select {
+
+			// collect any messages
+			case msg := <-msgChan:
+
+				// check the message over
+				log.Infof("\tmessage received from: %v", msg.From.Pretty())
+				log.Infof("\tcontent: %v", msg.Data)
+
+				// handle it
+				//var doc map[string]interface{}
+				//json.Unmarshal([]byte(s), &doc)
+				//context, hasContext := doc["@context"]
+
+			// collect any errors from the PubSub
+			case err := <-errChan:
+				log.Warn(err)
+			}
+
+		}
+
+
+	*/
+
+}

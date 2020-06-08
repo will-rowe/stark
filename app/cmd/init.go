@@ -58,8 +58,8 @@ func init() {
 func runInit(projectName string) {
 	config.StartLog("init")
 	log.Info("initialising database...")
-	log.Info("\tproject name:\t", projectName)
-	log.Infof("\tlocal data:\t%v/%v", *projectPath, projectName)
+	log.Infof("\tproject name: %v", projectName)
+	log.Infof("\tlocal data: %v/%v", *projectPath, projectName)
 
 	// check we don't have a database for this project yet
 	projs := viper.GetStringMapString("Databases")
@@ -89,5 +89,5 @@ func runInit(projectName string) {
 	if err := conf.WriteConfig(); err != nil {
 		log.Fatal(err)
 	}
-	log.Info("finished.")
+	log.Info("done.")
 }

@@ -185,13 +185,17 @@ func (x *Record) GetLastUpdatedTimestamp() *timestamp.Timestamp {
 }
 
 func (x *Record) setAlias(alias string) error {
-	x.Alias = alias
-	x.AddComment("alias updated.")
+	if len(alias) != 0 {
+		x.Alias = alias
+		x.AddComment("alias updated.")
+	}
 	return nil
 }
 
 func (x *Record) setDescription(description string) error {
-	x.Description = description
-	x.AddComment("description updated.")
+	if len(description) != 0 {
+		x.Description = description
+		x.AddComment("description updated.")
+	}
 	return nil
 }
