@@ -475,16 +475,25 @@ func ExampleOpenDB() {
 	defer dbCloser()
 
 	// create a record
-	record, err := NewRecord(SetAlias("my first sample"))
+	record, err := NewRecord(SetAlias("my first record"))
 	if err != nil {
 		panic(err)
 	}
 
 	// add record to starkDB
-	err = starkdb.Set("db key", record)
+	err = starkdb.Set("lookupKey", record)
 	if err != nil {
 		panic(err)
 	}
+
+	// retrieve record from the starkDB
+	retrievedRecord, err := starkdb.Get("lookupKey")
+	if err != nil {
+		panic(err)
+	}
+	fmt.Println(retrievedRecord.GetAlias())
+
+	// Output: my first record
 }
 
 // ExampleRangeCIDs documents the usage of RangeCIDs.
@@ -499,12 +508,27 @@ func ExampleRangeCIDs() {
 	// defer the database closer
 	defer dbCloser()
 
+	// create a record
+	record, err := NewRecord(SetAlias("my first record"))
+	if err != nil {
+		panic(err)
+	}
+
+	// add record to starkDB
+	err = starkdb.Set("lookupKey", record)
+	if err != nil {
+		panic(err)
+	}
+
 	// range over the database entries (as KeyCIDpairs)
 	for entry := range starkdb.RangeCIDs() {
 		if entry.Error != nil {
 			panic(err)
 		}
-		fmt.Printf("key: %s, value: %s\n", entry.Key, entry.CID)
+		//fmt.Printf("key: %s, value: %s\n", entry.Key, entry.CID)
+		fmt.Printf("key=%v", entry.Key)
+
+		// Output: key=lookupKey
 	}
 }
 
