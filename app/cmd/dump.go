@@ -1,4 +1,3 @@
-// Package cmd is the command line utility for managing a stark database.
 /*
 Copyright © 2020 Will Rowe <w.p.m.rowe@gmail.com>
 
@@ -23,25 +22,57 @@ THE SOFTWARE.
 package cmd
 
 import (
+	"fmt"
+	"os"
+
+	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
+	starkdb "github.com/will-rowe/stark"
 )
 
-// addCmd represents the add command
-var addCmd = &cobra.Command{
-	Use:   "add <project name>",
-	Short: "Add a record to a database",
-	Long:  `Add a record to a database.`,
-	Args:  cobra.ExactArgs(1),
+// dumpCmd represents the dump command
+var dumpCmd = &cobra.Command{
+	Use:   "dump <project name>",
+	Short: "Dump a database to STDOUT",
+	Long: `Dump will produce a JSON formatted
+	metadata string for the specified database, then 
+	print it to STDOUT.`,
+	Args: cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
-		runAdd(args[0])
+		runDump(args[0])
 	},
 }
 
 func init() {
-	rootCmd.AddCommand(addCmd)
+	rootCmd.AddCommand(dumpCmd)
 }
 
-// runAdd is the main block for the add subcommand
-func runAdd(arg string) {
+func runDump(projectName string) {
 
+	// get the database local storage path
+	projs := viper.GetStringMapString("Databases")
+	projectPath, ok := projs[projectName]
+	if !ok {
+		log.Fatalf("no project found for: %v", projectName)
+		os.Exit(1)
+	}
+
+	// open the db
+	db, dbCloser, err := starkdb.OpenDB(starkdb.SetProject(projectName), starkdb.SetLocalStorageDir(projectPath))
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	// dump the db metadata
+	json, err := db.DumpMetadata()
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	fmt.Println(json)
+
+	if err := dbCloser(); err != nil {
+		log.Fatal(err)
+	}
 }

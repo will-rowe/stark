@@ -1,4 +1,3 @@
-// Package cmd is the command line utility for managing a stark database.
 /*
 Copyright © 2020 Will Rowe <w.p.m.rowe@gmail.com>
 
@@ -23,25 +22,21 @@ THE SOFTWARE.
 package cmd
 
 import (
+	"fmt"
+
 	"github.com/spf13/cobra"
 )
 
-// addCmd represents the add command
-var addCmd = &cobra.Command{
-	Use:   "add <project name>",
-	Short: "Add a record to a database",
-	Long:  `Add a record to a database.`,
-	Args:  cobra.ExactArgs(1),
+// getCmd represents the get command
+var getCmd = &cobra.Command{
+	Use:   "get",
+	Short: "Get a record from a database",
+	Long:  `Get a record from a database.`,
 	Run: func(cmd *cobra.Command, args []string) {
-		runAdd(args[0])
+		fmt.Println("get called")
 	},
 }
 
 func init() {
-	rootCmd.AddCommand(addCmd)
-}
-
-// runAdd is the main block for the add subcommand
-func runAdd(arg string) {
-
+	rootCmd.AddCommand(getCmd)
 }

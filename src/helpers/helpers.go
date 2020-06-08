@@ -8,6 +8,16 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
+// CheckFileExists checks a returns true if
+// a file exists and is not a directory.
+func CheckFileExists(filename string) bool {
+	info, err := os.Stat(filename)
+	if os.IsNotExist(err) {
+		return false
+	}
+	return !info.IsDir()
+}
+
 // CheckDir is a function to check that a directory
 // exists and tries to make it if it doesn't.
 func CheckDir(dir string) error {
