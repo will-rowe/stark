@@ -16,7 +16,7 @@ Features include:
 
 - encrypt record fields
 
-///////////////////////////////////////////////////////////////////////////////*/
+*/
 package stark // import "github.com/will-rowe/stark"
 
 import (
