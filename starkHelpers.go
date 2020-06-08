@@ -10,13 +10,14 @@ import (
 // dbMetadata is used to dump starkDB metadata to
 // JSON.
 type dbMetadata struct {
-	Project      string `json:"project"`
-	Host         string `json:"host_node"`
-	KeystorePath string `json:"keystore"`
-	Pinning      bool   `json:"pinning"`
-	Announcing   bool   `json:"announcing"`
-	MaxEntries   int    `json:"max_entries"`
-	CurrEntries  int    `json:"current_entries"`
+	Project      string      `json:"project"`
+	Host         string      `json:"host_node"`
+	KeystorePath string      `json:"keystore"`
+	Pinning      bool        `json:"pinning"`
+	Announcing   bool        `json:"announcing"`
+	MaxEntries   int         `json:"max_entries"`
+	CurrEntries  int         `json:"current_entries"`
+	Pairs        [][2]string `json:"contents"`
 }
 
 // MarshalJSON is used to satisify the JSON Marshaler
@@ -27,6 +28,15 @@ func (Db *Db) MarshalJSON() ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
+	pairs := make([][2]string, Db.currentNumEntries)
+	counter := 0
+	for entry := range Db.RangeCIDs() {
+		if entry.Error != nil {
+			return nil, err
+		}
+		pairs[counter] = [2]string{entry.Key, entry.CID}
+		counter++
+	}
 	return json.Marshal(dbMetadata{
 		Db.project,
 		nodeID,
@@ -35,6 +45,7 @@ func (Db *Db) MarshalJSON() ([]byte, error) {
 		Db.announcing,
 		Db.maxEntries,
 		Db.currentNumEntries,
+		pairs,
 	})
 }
 
