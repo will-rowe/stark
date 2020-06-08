@@ -42,8 +42,12 @@ var (
 var addCmd = &cobra.Command{
 	Use:   "add <project name> <key>",
 	Short: "Add a record to a database",
-	Long:  `Add a record to a database.`,
-	Args:  cobra.ExactArgs(2),
+	Long: `Add a record to a database.
+	
+	This command only offers basic Record fields at the moment.
+	It may also be subject to change depending on best to add
+	Records as the Record structure evolves.`,
+	Args: cobra.ExactArgs(2),
 	Run: func(cmd *cobra.Command, args []string) {
 		runAdd(args[0], args[1])
 	},
@@ -51,7 +55,7 @@ var addCmd = &cobra.Command{
 
 func init() {
 	rootCmd.AddCommand(addCmd)
-	announce = addCmd.Flags().Bool("announce", false, "Announce to the Record to the PubSub network when it is added to the Project")
+	announce = addCmd.Flags().Bool("announce", false, "Announce the Record to the PubSub network when it is added to the Project database")
 	recordAlias = addCmd.Flags().String("alias", "", "Alias to give the new record")
 	recordDescription = addCmd.Flags().String("description", "", "Description to give new record")
 }

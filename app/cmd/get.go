@@ -22,21 +22,78 @@ THE SOFTWARE.
 package cmd
 
 import (
-	"fmt"
+	"encoding/json"
+	"io/ioutil"
+	"os"
 
+	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
+	starkdb "github.com/will-rowe/stark"
+	"github.com/will-rowe/stark/app/config"
+)
+
+var (
+	outFile *string
 )
 
 // getCmd represents the get command
 var getCmd = &cobra.Command{
-	Use:   "get",
+	Use:   "get <project name> <key>",
 	Short: "Get a record from a database",
 	Long:  `Get a record from a database.`,
+	Args:  cobra.ExactArgs(2),
 	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Println("get called")
+		runGet(args[0], args[1])
 	},
 }
 
 func init() {
 	rootCmd.AddCommand(getCmd)
+	outFile = getCmd.Flags().StringP("outFile", "o", "record.json", "Outfile name for retrieved record")
+}
+
+// runGet is the main block for the add subcommand
+func runGet(projectName, key string) {
+	config.StartLog("get")
+
+	// init the database
+	log.Info("fetching database...")
+	projs := viper.GetStringMapString("Databases")
+	projectPath, ok := projs[projectName]
+	if !ok {
+		log.Fatalf("no project found for: %v", projectName)
+		os.Exit(1)
+	}
+	log.Info("\tproject name: ", projectName)
+
+	// open the db
+	db, dbCloser, err := starkdb.OpenDB(starkdb.SetProject(projectName), starkdb.SetLocalStorageDir(projectPath))
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	// defer close of the db
+	defer func() {
+		if err := dbCloser(); err != nil {
+			log.Fatal(err)
+		}
+	}()
+
+	// get the Record
+	log.Info("getting the record...")
+	record, err := db.Get(key)
+	if err != nil {
+		log.Fatal(err)
+	}
+	data, err := json.MarshalIndent(record, "", " ")
+	if err != nil {
+		log.Fatal(err)
+	}
+	if err := ioutil.WriteFile(*outFile, data, 0644); err != nil {
+		log.Fatal(err)
+	}
+	log.Infof("\trecord key: %s", key)
+	log.Infof("\twritten to file: %s", *outFile)
+	log.Info("done.")
 }
