@@ -77,15 +77,14 @@ func init() {
 		panic("default IPFS repo needs initialising (run `ipfs init`)")
 	}
 
-	// wait until lock is free
-	for {
-		locked, err := fsrepo.LockedByOtherProcess(defaultIpfsRepo)
-		if err != nil {
-			panic(err)
-		}
-		if !locked {
-			break
-		}
+	// check if repo is already locked
+
+	locked, err := fsrepo.LockedByOtherProcess(defaultIpfsRepo)
+	if err != nil {
+		panic(err)
+	}
+	if locked {
+		panic("default IPFS repo in use - is a daemon already running?")
 	}
 
 	// initialise the plugins
