@@ -84,7 +84,7 @@ func NewRecordFromReader(data io.Reader, ienc string) (*Record, error) {
 			return nil, err
 		}
 	default:
-		return nil, fmt.Errorf("unsupported format: %", ienc)
+		return nil, fmt.Errorf("unsupported format: %s", ienc)
 	}
 	return x, nil
 }
