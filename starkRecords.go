@@ -2,11 +2,15 @@ package stark
 
 import (
 	"fmt"
+	"io"
+	"io/ioutil"
 
+	"github.com/gogo/protobuf/jsonpb"
 	"github.com/golang/protobuf/ptypes"
 	"github.com/golang/protobuf/ptypes/timestamp"
 	"github.com/google/uuid"
 	starkcrypto "github.com/will-rowe/stark/src/crypto"
+	"google.golang.org/protobuf/proto"
 )
 
 // SetAlias is an option setter for the NewRecord constructor
@@ -58,6 +62,30 @@ func NewRecord(options ...RecordOption) (*Record, error) {
 		}
 	}
 
+	return x, nil
+}
+
+// NewRecordFromReader creates a Record from a reader.
+// Accepts either JSON or Protobuf encoded Record.
+func NewRecordFromReader(data io.Reader, ienc string) (*Record, error) {
+	x := &Record{}
+	switch ienc {
+	case "json":
+		um := &jsonpb.Unmarshaler{}
+		if err := um.Unmarshal(data, x); err != nil {
+			return nil, err
+		}
+	case "proto":
+		buf, err := ioutil.ReadAll(data)
+		if err != nil {
+			return nil, err
+		}
+		if err := proto.Unmarshal(buf, x); err != nil {
+			return nil, err
+		}
+	default:
+		return nil, fmt.Errorf("unsupported format: %", ienc)
+	}
 	return x, nil
 }
 

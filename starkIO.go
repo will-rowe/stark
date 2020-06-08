@@ -170,6 +170,16 @@ func (Db *Db) GetRecordFromCID(cid string) (*Record, error) {
 	return record, nil
 }
 
+// GetCID will return an IPFS CID in the starkDB
+// for the provided lookup key.
+func (Db *Db) GetCID(key string) (string, error) {
+	cid, ok := Db.keystoreGet(key)
+	if !ok {
+		return "", fmt.Errorf("could not retrieve CID from local keystore")
+	}
+	return cid, nil
+}
+
 // GetExplorerLink will return an IPFS explorer link for
 // a CID in the starkDB given the provided lookup key.
 func (Db *Db) GetExplorerLink(key string) (string, error) {
