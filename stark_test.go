@@ -9,7 +9,6 @@ import (
 	"testing"
 	"time"
 
-	starkcrypto "github.com/will-rowe/stark/src/crypto"
 	starkipfs "github.com/will-rowe/stark/src/ipfs"
 )
 
@@ -421,7 +420,7 @@ func TestEncyption(t *testing.T) {
 		t.Fatal(err)
 	}
 	retrievedRec, err := starkdb.Get(testKey)
-	if err != starkcrypto.ErrCipherKeyMissing {
+	if err == nil {
 		t.Fatal("retrieved and decypted an encrypted record via a db with no cipher key")
 	}
 
@@ -500,7 +499,7 @@ func ExampleOpenDB() {
 func ExampleRangeCIDs() {
 
 	// init the starkDB with functional options
-	starkdb, dbCloser, err := OpenDB(SetProject("my project"), SetLocalStorageDir("/tmp/starkdb"), WithNoPinning())
+	starkdb, dbCloser, err := OpenDB(SetProject("rangeCID example"), SetLocalStorageDir("/tmp/starkdb"), WithNoPinning())
 	if err != nil {
 		panic(err)
 	}
@@ -536,7 +535,7 @@ func ExampleRangeCIDs() {
 func ExampleListen() {
 
 	// init the starkDB with functional options
-	starkdb, dbCloser, err := OpenDB(SetProject("my project"), SetLocalStorageDir("/tmp/starkdb"))
+	starkdb, dbCloser, err := OpenDB(SetProject("listen example"), SetLocalStorageDir("/tmp/starkdb"))
 	if err != nil {
 		panic(err)
 	}
