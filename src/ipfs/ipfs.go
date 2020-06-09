@@ -5,7 +5,9 @@ import (
 	"context"
 	"fmt"
 	"math"
+	"net"
 	"path/filepath"
+	"strings"
 
 	config "github.com/ipfs/go-ipfs-config"
 	"github.com/ipfs/go-ipfs/core/bootstrap"
@@ -19,6 +21,8 @@ import (
 
 	"github.com/ipfs/go-ipfs/core" // This package is needed so that all the preloaded plugins are loaded automatically
 	"github.com/ipfs/go-ipfs/repo/fsrepo"
+
+	"github.com/will-rowe/stark/src/helpers"
 )
 
 const (
@@ -136,6 +140,27 @@ func (client *Client) PrintListeners() {
 // PrintNodeID will print the node's identity.
 func (client *Client) PrintNodeID() string {
 	return client.node.Identity.Pretty()
+}
+
+// GetPublicIPv4Addr uses the host addresses to return the
+// public ipv4 address of the host machine, if available.
+func (client *Client) GetPublicIPv4Addr() (string, error) {
+	var ip string
+	for _, addr := range client.node.PeerHost.Addrs() {
+		parts := strings.Split(addr.String(), "/")
+		if len(parts) < 3 {
+			continue
+		}
+		parsed := net.ParseIP(parts[2])
+		if parsed != nil && helpers.IsPublicIPv4(parsed) {
+			ip = parts[2]
+			break
+		}
+	}
+	if ip == "" {
+		return ip, fmt.Errorf("no public IPv4 address was found")
+	}
+	return ip, nil
 }
 
 // Online will return true if the node is online.

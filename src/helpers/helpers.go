@@ -3,6 +3,7 @@ package helpers
 
 import (
 	"fmt"
+	"net"
 	"os"
 
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -47,5 +48,30 @@ func CheckTimeStamp(old, new *timestamppb.Timestamp) bool {
 			return false
 		}
 	}
+	return true
+}
+
+// IsPublicIPv4 returns true if the given ip is not reserved for a private address.
+// of course, this only implies that it _might_ be public
+// https://stackoverflow.com/a/41670589
+func IsPublicIPv4(ip net.IP) bool {
+	if ip.IsLoopback() || ip.IsLinkLocalMulticast() || ip.IsLinkLocalUnicast() {
+		return false
+	}
+
+	/*
+		if ip4 := ip.To4(); ip4 != nil {
+			switch true {
+			case ip4[0] == 10:
+				return false
+			case ip4[0] == 172 && ip4[1] >= 16 && ip4[1] <= 31:
+				return false
+			case ip4[0] == 192 && ip4[1] == 168:
+				return false
+			default:
+				return true
+			}
+		}
+	*/
 	return true
 }

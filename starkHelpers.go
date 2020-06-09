@@ -12,6 +12,7 @@ import (
 type dbMetadata struct {
 	Project      string      `json:"project"`
 	Host         string      `json:"host_node"`
+	HostAdd      string      `json:"host_address"`
 	KeystorePath string      `json:"keystore"`
 	Pinning      bool        `json:"pinning"`
 	Announcing   bool        `json:"announcing"`
@@ -28,6 +29,10 @@ func (Db *Db) MarshalJSON() ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
+	nodeAdd, err := Db.GetNodeAddr()
+	if err != nil {
+		return nil, err
+	}
 	pairs := make([][2]string, Db.currentNumEntries)
 	counter := 0
 	for entry := range Db.RangeCIDs() {
@@ -40,6 +45,7 @@ func (Db *Db) MarshalJSON() ([]byte, error) {
 	return json.Marshal(dbMetadata{
 		Db.project,
 		nodeID,
+		nodeAdd,
 		Db.keystorePath,
 		Db.pinning,
 		Db.announcing,
@@ -199,6 +205,26 @@ func (Db *Db) GetNodeIdentity() (string, error) {
 		return "", ErrNoPeerID
 	}
 	return id, nil
+}
+
+// GetNodeAddr returns the public address of the
+// underlying IPFS node for the starkDB
+// instance.
+func (Db *Db) GetNodeAddr() (string, error) {
+	Db.lock.Lock()
+	defer Db.lock.Unlock()
+	if !Db.IsOnline() {
+		return "", ErrNodeOffline
+	}
+	add, err := Db.ipfsClient.GetPublicIPv4Addr()
+	if err != nil {
+		return "", err
+	}
+	id := Db.ipfsClient.PrintNodeID()
+	if len(id) == 0 {
+		return "", ErrNoPeerID
+	}
+	return fmt.Sprintf("/ip4/%s/tcp/4001/p2p/%s", add, id), nil
 }
 
 // refreshCount will clear the record counter and then
