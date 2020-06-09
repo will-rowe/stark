@@ -58,13 +58,19 @@ var (
 	ErrDbOption = fmt.Errorf("starkDB option could not be set")
 
 	// ErrEncrypted is issued when an encryption is attempted on an encrypted Record.
-	ErrEncrypted = fmt.Errorf("data is encrypted, needs decrypt")
+	ErrEncrypted = fmt.Errorf("data is encrypted with passphrase")
 
 	// ErrCipherPasswordMismatch is issued when a password does not decrypt a Record.
 	ErrCipherPasswordMismatch = fmt.Errorf("provided password cannot decrypt Record")
 
-	// ErrExistingRecord indicates a Record with matching UUID is already in the IPFS and has a more recent update timestamp.
-	ErrExistingRecord = fmt.Errorf("cannot replace a Record in starkDB with an older version")
+	// ErrAttemptedOverwrite indicates a starkDB key is already in use for a Record with non-matching UUID.
+	ErrAttemptedOverwrite = fmt.Errorf("starkDB key is already in use for a Record with non-matching UUID")
+
+	// ErrRecordHistory indicates two Records with the same UUID a gap in their history.
+	ErrRecordHistory = fmt.Errorf("both Records share UUID but have a gap in their history")
+
+	// ErrAttemptedUpdate indicates a Record with matching UUID is already in the IPFS and has a more recent update timestamp.
+	ErrAttemptedUpdate = fmt.Errorf("cannot update a Record in starkDB with an older version")
 
 	// ErrKeyNotFound is issued during a Get request when the key is not present in the local keystore.
 	ErrKeyNotFound = fmt.Errorf("key not found in the database")

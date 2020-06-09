@@ -8,6 +8,7 @@ import (
 	"github.com/dgraph-io/badger"
 	"github.com/gogo/protobuf/jsonpb"
 	cbor "github.com/ipfs/go-ipld-cbor"
+	"github.com/pkg/errors"
 	starkhelpers "github.com/will-rowe/stark/src/helpers"
 )
 
@@ -32,19 +33,22 @@ func (Db *Db) Set(key string, record *Record) error {
 			return err
 		}
 
-		// make sure new record has a more recent timestamp than the existing record
+		// check UUIDs
+		if existingRecord.GetUuid() != record.GetUuid() {
+			return ErrAttemptedOverwrite
+		}
+
+		// if the existingCID in the local keystore does not match the previousCID of the incoming Record it is an attempted overwrite
+		if existingCID != record.GetPreviousCID() {
+			return ErrRecordHistory
+		}
+
+		// otherwise this is an attempted update, check that the incoming Record is more recent
 		if !starkhelpers.CheckTimeStamp(existingRecord.GetLastUpdatedTimestamp(), record.GetLastUpdatedTimestamp()) {
-
-			// can't replace an existing record in the DB with one that is not as recent
-			return ErrExistingRecord
+			return ErrAttemptedUpdate
 		}
+		record.AddComment("Set: updating record.")
 
-		// if the existingCID in the local keystore matches the previousCID of the incoming Record, assume this is an update, otherwise it is an overwrite
-		if existingCID == record.GetPreviousCID() {
-			record.AddComment("Set: updating record.")
-		} else {
-			record.AddComment("Set: overwriting record.")
-		}
 	}
 	record.AddComment("Set: adding record to IPFS.")
 
@@ -161,7 +165,7 @@ func (Db *Db) GetRecordFromCID(cid string) (*Record, error) {
 	// if it's an encrypted Record, see if we can decrypt
 	if record.GetEncrypted() {
 		if err := record.Decrypt(Db.cipherKey); err != nil {
-			return nil, err
+			return nil, errors.Wrap(err, ErrEncrypted.Error())
 		}
 	}
 

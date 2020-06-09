@@ -149,7 +149,6 @@ func (x *Record) Encrypt(cipherKey []byte) error {
 
 	// set the Record to encrypted
 	x.Encrypted = true
-	x.AddComment("encrypted record.")
 	return nil
 }
 
@@ -174,7 +173,6 @@ func (x *Record) Decrypt(cipherKey []byte) error {
 
 	// set the Record to decrypted
 	x.Encrypted = false
-	x.AddComment("decrypted record.")
 	return nil
 }
 
