@@ -67,8 +67,22 @@ func runGet(projectName, key string) {
 	}
 	log.Info("\tproject name: ", projectName)
 
+	// setup the db opts
+	dbOpts := []starkdb.DbOption{
+		starkdb.SetProject(projectName),
+		starkdb.SetLocalStorageDir(projectPath),
+	}
+	if announce {
+		log.Info("\tusing announce")
+		dbOpts = append(dbOpts, starkdb.WithAnnouncing())
+	}
+	if encrypt {
+		log.Info("\tusing encryption")
+		dbOpts = append(dbOpts, starkdb.WithEncryption())
+	}
+
 	// open the db
-	db, dbCloser, err := starkdb.OpenDB(starkdb.SetProject(projectName), starkdb.SetLocalStorageDir(projectPath))
+	db, dbCloser, err := starkdb.OpenDB(dbOpts...)
 	if err != nil {
 		log.Fatal(err)
 	}

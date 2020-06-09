@@ -37,7 +37,11 @@ var dumpCmd = &cobra.Command{
 	Short: "Dump a database to STDOUT",
 	Long: `Dump will produce a JSON formatted
 	metadata string for the specified database, then 
-	print it to STDOUT.`,
+	print it to STDOUT.
+	
+	The JSON will also contain all keys and linked
+	IPFS CIDs contained within the database. Full
+	records will not be returned.`,
 	Args: cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		runDump(args[0])

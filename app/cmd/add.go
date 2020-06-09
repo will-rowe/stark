@@ -33,7 +33,6 @@ import (
 )
 
 var (
-	announce          *bool
 	recordAlias       *string
 	recordDescription *string
 )
@@ -55,9 +54,8 @@ var addCmd = &cobra.Command{
 
 func init() {
 	rootCmd.AddCommand(addCmd)
-	announce = addCmd.Flags().Bool("announce", false, "Announce the Record to the PubSub network when it is added to the Project database")
 	recordAlias = addCmd.Flags().String("alias", "", "Alias to give the new record")
-	recordDescription = addCmd.Flags().String("description", "", "Description to give new record")
+	recordDescription = addCmd.Flags().String("description", "", "Description to give new record (enclose in quotes)")
 }
 
 // runAdd is the main block for the add subcommand
@@ -74,8 +72,22 @@ func runAdd(projectName, key string) {
 	}
 	log.Info("\tproject name: ", projectName)
 
+	// setup the db opts
+	dbOpts := []starkdb.DbOption{
+		starkdb.SetProject(projectName),
+		starkdb.SetLocalStorageDir(projectPath),
+	}
+	if announce {
+		log.Info("\tusing announce")
+		dbOpts = append(dbOpts, starkdb.WithAnnouncing())
+	}
+	if encrypt {
+		log.Info("\tusing encryption")
+		dbOpts = append(dbOpts, starkdb.WithEncryption())
+	}
+
 	// open the db
-	db, dbCloser, err := starkdb.OpenDB(starkdb.SetProject(projectName), starkdb.SetLocalStorageDir(projectPath))
+	db, dbCloser, err := starkdb.OpenDB(dbOpts...)
 	if err != nil {
 		log.Fatal(err)
 	}
