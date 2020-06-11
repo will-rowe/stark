@@ -233,6 +233,9 @@ func TestNewDB(t *testing.T) {
 	if err := teardown(); err != nil {
 		t.Fatal(err)
 	}
+	if starkdb.cidLookup != nil {
+		t.Fatal("starkdb teardown did not clear struct")
+	}
 }
 
 // TestReopenDB will check database re-opening, ranging and deleting.

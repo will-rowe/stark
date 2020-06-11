@@ -14,20 +14,20 @@ import (
 // Set will add a Record to the starkDB, linking it with the provided key.
 // Set adds a comment to the Record's history before adding it to the
 // IPFS.
-func (Db *Db) Set(key string, record *Record) error {
-	Db.Lock()
-	defer Db.Unlock()
+func (starkdb *Db) Set(key string, record *Record) error {
+	starkdb.Lock()
+	defer starkdb.Unlock()
 
 	// max entry check
-	if Db.currentNumEntries == Db.maxEntries {
+	if starkdb.currentNumEntries == starkdb.maxEntries {
 		return ErrMaxEntriesExceeded
 	}
 
 	// check the local keystore to see if this key has been used before
-	if existingCID, exists := Db.cidLookup[key]; exists {
+	if existingCID, exists := starkdb.cidLookup[key]; exists {
 
 		// retrieve the record for this key
-		existingRecord, err := Db.getRecordFromCID(existingCID)
+		existingRecord, err := starkdb.getRecordFromCID(existingCID)
 		if err != nil {
 			return err
 		}
@@ -52,8 +52,8 @@ func (Db *Db) Set(key string, record *Record) error {
 	record.AddComment("Set: adding record to IPFS.")
 
 	// if encrypting requested and Record isn't already, do it now
-	if len(Db.cipherKey) != 0 && !record.GetEncrypted() {
-		if err := record.Encrypt(Db.cipherKey); err != nil {
+	if len(starkdb.cipherKey) != 0 && !record.GetEncrypted() {
+		if err := record.Encrypt(starkdb.cipherKey); err != nil {
 			return err
 		}
 	}
@@ -65,93 +65,93 @@ func (Db *Db) Set(key string, record *Record) error {
 	}
 
 	// create DAG node in IPFS for Record data
-	cid, err := Db.ipfsClient.DagPut(Db.ctx, jsonData, Db.pinning)
+	cid, err := starkdb.ipfsClient.DagPut(starkdb.ctx, jsonData, starkdb.pinning)
 	if err != nil {
 		return err
 	}
 
 	// link the record CID to the project directory and take a snapshot
-	snapshotUpdate, err := Db.ipfsClient.AddLink(Db.ctx, Db.snapshotCID, cid, key)
+	snapshotUpdate, err := starkdb.ipfsClient.AddLink(starkdb.ctx, starkdb.snapshotCID, cid, key)
 	if err != nil {
 		return errors.Wrap(err, ErrSnapshotUpdate.Error())
 	}
-	Db.snapshotCID = snapshotUpdate
+	starkdb.snapshotCID = snapshotUpdate
 
 	// if announcing, do it now
-	if Db.announcing {
+	if starkdb.announcing {
 
 		// TODO: send proto data instead of CID
-		if err := Db.publishAnnouncement([]byte(cid)); err != nil {
+		if err := starkdb.publishAnnouncement([]byte(cid)); err != nil {
 			return err
 		}
 	}
 
 	// add the returned CID to the local keystore
-	Db.cidLookup[key] = cid
-	Db.currentNumEntries++
+	starkdb.cidLookup[key] = cid
+	starkdb.currentNumEntries++
 	return nil
 }
 
 // Get will retrieve a Record from the starkDB using the provided key.
-func (Db *Db) Get(key string) (*Record, error) {
-	Db.Lock()
-	defer Db.Unlock()
+func (starkdb *Db) Get(key string) (*Record, error) {
+	starkdb.Lock()
+	defer starkdb.Unlock()
 
 	// check the local keystore for the provided key
-	cid, ok := Db.cidLookup[key]
+	cid, ok := starkdb.cidLookup[key]
 	if !ok {
 		return nil, ErrNotFound(key)
 	}
 
 	// use the helper method to retrieve the Record
-	return Db.getRecordFromCID(cid)
+	return starkdb.getRecordFromCID(cid)
 }
 
-// Delete will delete an entry from starkDB. This involves
+// Delete will delete an entry from starkdb. This involves
 // removing the key and Record CID from the local store,
 // as well as unpinning the Record from the IPFS.
 //
 // Note: I'm not sure how this behaves if the Record
 // wasn't pinned in the IPFS in the first place.
-func (Db *Db) Delete(key string) error {
-	Db.Lock()
-	defer Db.Unlock()
+func (starkdb *Db) Delete(key string) error {
+	starkdb.Lock()
+	defer starkdb.Unlock()
 
 	// check the local keystore for the provided key
-	cid, ok := Db.cidLookup[key]
+	cid, ok := starkdb.cidLookup[key]
 	if !ok {
 		return ErrNotFound(key)
 	}
 
 	// unlink the record CID from the project directory and update a snapshot
-	snapshotUpdate, err := Db.ipfsClient.RmLink(Db.ctx, Db.snapshotCID, key)
+	snapshotUpdate, err := starkdb.ipfsClient.RmLink(starkdb.ctx, starkdb.snapshotCID, key)
 	if err != nil {
 		return errors.Wrap(err, ErrSnapshotUpdate.Error())
 	}
-	Db.snapshotCID = snapshotUpdate
+	starkdb.snapshotCID = snapshotUpdate
 
 	// unpin the file
-	if err := Db.ipfsClient.Unpin(Db.ctx, cid); err != nil {
+	if err := starkdb.ipfsClient.Unpin(starkdb.ctx, cid); err != nil {
 		return err
 	}
 
 	// TODO: if using a pinning service - will need to request an unpin there
 
 	// remove from the keystore
-	delete(Db.cidLookup, key)
-	Db.currentNumEntries--
+	delete(starkdb.cidLookup, key)
+	starkdb.currentNumEntries--
 	return nil
 }
 
 // getRecordFromCID is a helper method that collects a Record from
 // the IPFS using its CID string.
-func (Db *Db) getRecordFromCID(cid string) (*Record, error) {
+func (starkdb *Db) getRecordFromCID(cid string) (*Record, error) {
 	if len(cid) == 0 {
 		return nil, ErrNoCID
 	}
 
 	// retrieve the record data from the IPFS
-	retrievedNode, err := Db.ipfsClient.DagGet(Db.ctx, cid)
+	retrievedNode, err := starkdb.ipfsClient.DagGet(starkdb.ctx, cid)
 	if err != nil {
 		return nil, err
 	}
@@ -177,7 +177,7 @@ func (Db *Db) getRecordFromCID(cid string) (*Record, error) {
 
 	// if it's an encrypted Record, see if we can decrypt
 	if record.GetEncrypted() {
-		if err := record.Decrypt(Db.cipherKey); err != nil {
+		if err := record.Decrypt(starkdb.cipherKey); err != nil {
 			return nil, errors.Wrap(err, ErrEncrypted.Error())
 		}
 	}

@@ -141,8 +141,8 @@ type Db struct {
 
 // DbOption is a wrapper struct used to pass functional
 // options to the starkDB constructor.
-type DbOption func(Db *Db) error
+type DbOption func(starkdb *Db) error
 
 // RecordOption is a wrapper struct used to pass functional
 // options to the Record constructor.
-type RecordOption func(Record *Record) error
+type RecordOption func(record *Record) error

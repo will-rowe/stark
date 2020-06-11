@@ -22,37 +22,37 @@ type dbMetadata struct {
 // MarshalJSON is used to satisify the JSON Marshaler
 // interface for the Db but restricts data to that
 // specified by the dbMetadata struct.
-func (Db *Db) MarshalJSON() ([]byte, error) {
-	nodeID, err := Db.GetNodeIdentity()
+func (starkdb *Db) MarshalJSON() ([]byte, error) {
+	nodeID, err := starkdb.GetNodeIdentity()
 	if err != nil {
 		return nil, err
 	}
-	nodeAdd, err := Db.GetNodeAddr()
+	nodeAdd, err := starkdb.GetNodeAddr()
 	if err != nil {
 		return nil, err
 	}
-	pairs := make([][2]string, Db.currentNumEntries)
+	pairs := make([][2]string, starkdb.currentNumEntries)
 	counter := 0
-	for key, value := range Db.cidLookup {
+	for key, value := range starkdb.cidLookup {
 		pairs[counter] = [2]string{key, value}
 		counter++
 	}
 	return json.Marshal(dbMetadata{
-		Db.project,
-		Db.snapshotCID,
+		starkdb.project,
+		starkdb.snapshotCID,
 		nodeID,
 		nodeAdd,
-		Db.pinning,
-		Db.announcing,
-		Db.maxEntries,
-		Db.currentNumEntries,
+		starkdb.pinning,
+		starkdb.announcing,
+		starkdb.maxEntries,
+		starkdb.currentNumEntries,
 		pairs,
 	})
 }
 
 // DumpMetadata returns a JSON string of starkDB metadata.
-func (Db *Db) DumpMetadata() (string, error) {
-	b, err := json.MarshalIndent(Db, "", "    ")
+func (starkdb *Db) DumpMetadata() (string, error) {
+	b, err := json.MarshalIndent(starkdb, "", "    ")
 	if err != nil {
 		return "", err
 	}
@@ -65,32 +65,32 @@ func (Db *Db) DumpMetadata() (string, error) {
 //
 // Note: if the database has no entries, the
 // returned snapshot will be a nil string.
-func (Db *Db) GetSnapshot() string {
-	Db.Lock()
-	defer Db.Unlock()
-	if Db.currentNumEntries == 0 {
+func (starkdb *Db) GetSnapshot() string {
+	starkdb.Lock()
+	defer starkdb.Unlock()
+	if starkdb.currentNumEntries == 0 {
 		return ""
 	}
-	return Db.snapshotCID
+	return starkdb.snapshotCID
 }
 
 // GetCIDs will return a map of keys to CIDs for
 // all Records currently held in the database.
-func (Db *Db) GetCIDs() map[string]string {
-	Db.Lock()
-	defer Db.Unlock()
-	return Db.cidLookup
+func (starkdb *Db) GetCIDs() map[string]string {
+	starkdb.Lock()
+	defer starkdb.Unlock()
+	return starkdb.cidLookup
 }
 
 // GetNodeIdentity returns the PeerID of the underlying IPFS
 // node for the starkDB instance.
-func (Db *Db) GetNodeIdentity() (string, error) {
-	Db.Lock()
-	defer Db.Unlock()
-	if !Db.isOnline() {
+func (starkdb *Db) GetNodeIdentity() (string, error) {
+	starkdb.Lock()
+	defer starkdb.Unlock()
+	if !starkdb.isOnline() {
 		return "", ErrNodeOffline
 	}
-	id := Db.ipfsClient.PrintNodeID()
+	id := starkdb.ipfsClient.PrintNodeID()
 	if len(id) == 0 {
 		return "", ErrNoPeerID
 	}
@@ -100,17 +100,17 @@ func (Db *Db) GetNodeIdentity() (string, error) {
 // GetNodeAddr returns the public address of the
 // underlying IPFS node for the starkDB
 // instance.
-func (Db *Db) GetNodeAddr() (string, error) {
-	Db.Lock()
-	defer Db.Unlock()
-	if !Db.isOnline() {
+func (starkdb *Db) GetNodeAddr() (string, error) {
+	starkdb.Lock()
+	defer starkdb.Unlock()
+	if !starkdb.isOnline() {
 		return "", ErrNodeOffline
 	}
-	add, err := Db.ipfsClient.GetPublicIPv4Addr()
+	add, err := starkdb.ipfsClient.GetPublicIPv4Addr()
 	if err != nil {
 		return "", err
 	}
-	id := Db.ipfsClient.PrintNodeID()
+	id := starkdb.ipfsClient.PrintNodeID()
 	if len(id) == 0 {
 		return "", ErrNoPeerID
 	}
@@ -120,8 +120,8 @@ func (Db *Db) GetNodeAddr() (string, error) {
 /*
 // GetExplorerLink will return an IPFS explorer link for
 // a CID in the starkDB given the provided lookup key.
-func (Db *Db) GetExplorerLink(key string) (string, error) {
-	cid, ok := Db.keystoreGet(key)
+func (starkdb *Db) GetExplorerLink(key string) (string, error) {
+	cid, ok := starkdb.keystoreGet(key)
 	if !ok {
 		return "", fmt.Errorf("could not retrieve CID from local keystore")
 	}
@@ -137,13 +137,13 @@ func (Db *Db) GetExplorerLink(key string) (string, error) {
 // It returns the Record channel, an Error channel which reports
 // errors during message processing and Record retrieval, as well
 // as any error during the PubSub setup.
-func (Db *Db) Listen(terminator chan struct{}) (chan *Record, chan error, error) {
-	if !Db.isOnline() {
+func (starkdb *Db) Listen(terminator chan struct{}) (chan *Record, chan error, error) {
+	if !starkdb.isOnline() {
 		return nil, nil, ErrNodeOffline
 	}
 
 	// subscribe the node to the starkDB project
-	if err := Db.ipfsClient.Subscribe(Db.ctx, Db.project); err != nil {
+	if err := starkdb.ipfsClient.Subscribe(starkdb.ctx, starkdb.project); err != nil {
 		return nil, nil, err
 	}
 
@@ -158,7 +158,7 @@ func (Db *Db) Listen(terminator chan struct{}) (chan *Record, chan error, error)
 	go func() {
 		for {
 			select {
-			case msg := <-Db.ipfsClient.GetPSMchan():
+			case msg := <-starkdb.ipfsClient.GetPSMchan():
 
 				// TODO: check sender peerID
 				//msg.From()
@@ -171,7 +171,7 @@ func (Db *Db) Listen(terminator chan struct{}) (chan *Record, chan error, error)
 				cidTracker[cid] = struct{}{}
 
 				// collect the Record from IPFS
-				collectedRecord, err := Db.getRecordFromCID(cid)
+				collectedRecord, err := starkdb.getRecordFromCID(cid)
 				if err != nil {
 					errChan <- err
 				} else {
@@ -183,11 +183,11 @@ func (Db *Db) Listen(terminator chan struct{}) (chan *Record, chan error, error)
 					recChan <- collectedRecord
 				}
 
-			case err := <-Db.ipfsClient.GetPSEchan():
+			case err := <-starkdb.ipfsClient.GetPSEchan():
 				errChan <- err
 
 			case <-terminator:
-				if err := Db.ipfsClient.Unsubscribe(); err != nil {
+				if err := starkdb.ipfsClient.Unsubscribe(); err != nil {
 					errChan <- err
 				}
 				close(recChan)
@@ -201,19 +201,19 @@ func (Db *Db) Listen(terminator chan struct{}) (chan *Record, chan error, error)
 
 // publishAnnouncement will send a PubSub message on the topic
 // of the database project.
-func (Db *Db) publishAnnouncement(message []byte) error {
-	if !Db.isOnline() {
+func (starkdb *Db) publishAnnouncement(message []byte) error {
+	if !starkdb.isOnline() {
 		return ErrNodeOffline
 	}
-	if len(Db.project) == 0 {
+	if len(starkdb.project) == 0 {
 		return ErrNoProject
 	}
-	return Db.ipfsClient.SendMessage(Db.ctx, Db.project, message)
+	return starkdb.ipfsClient.SendMessage(starkdb.ctx, starkdb.project, message)
 }
 
 // isOnline returns true if the starkDB is in online mode
 // and the IPFS daemon is reachable.
 // TODO: this needs some more work.
-func (Db *Db) isOnline() bool {
-	return Db.ipfsClient.Online() && Db.allowNetwork
+func (starkdb *Db) isOnline() bool {
+	return starkdb.ipfsClient.Online() && starkdb.allowNetwork
 }

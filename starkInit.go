@@ -15,8 +15,8 @@ import (
 // constructor that sets the project for the
 // database.
 func SetProject(project string) DbOption {
-	return func(Db *Db) error {
-		return Db.setProject(project)
+	return func(starkdb *Db) error {
+		return starkdb.setProject(project)
 	}
 }
 
@@ -28,8 +28,8 @@ func SetProject(project string) DbOption {
 // populate the starkDB from the existing records
 // contained in the snapshot.
 func SetSnapshotCID(path string) DbOption {
-	return func(Db *Db) error {
-		return Db.setSnapshotCID(path)
+	return func(starkdb *Db) error {
+		return starkdb.setSnapshotCID(path)
 	}
 }
 
@@ -40,8 +40,8 @@ func SetSnapshotCID(path string) DbOption {
 // Note: a default list of bootstrappers will be used
 // if this option setter is omitted.
 func SetBootstrappers(bootstrapperList []string) DbOption {
-	return func(Db *Db) error {
-		return Db.setBootstrappers(bootstrapperList)
+	return func(starkdb *Db) error {
+		return starkdb.setBootstrappers(bootstrapperList)
 	}
 }
 
@@ -49,8 +49,8 @@ func SetBootstrappers(bootstrapperList []string) DbOption {
 // that tells starkDB instance the maximum number of keys it
 // can hold.
 func SetKeyLimit(val int) DbOption {
-	return func(Db *Db) error {
-		return Db.setKeyLimit(val)
+	return func(starkdb *Db) error {
+		return starkdb.setKeyLimit(val)
 	}
 }
 
@@ -60,8 +60,8 @@ func SetKeyLimit(val int) DbOption {
 // Note: If not provided to the constructor, the node will
 // pin entries by default.
 func WithNoPinning() DbOption {
-	return func(Db *Db) error {
-		return Db.setPinning(false)
+	return func(starkdb *Db) error {
+		return starkdb.setPinning(false)
 	}
 }
 
@@ -73,8 +73,8 @@ func WithNoPinning() DbOption {
 // set Record is broadcast on IPFS with the database project
 // as the topic.
 func WithAnnouncing() DbOption {
-	return func(Db *Db) error {
-		return Db.setAnnouncing(true)
+	return func(starkdb *Db) error {
+		return starkdb.setAnnouncing(true)
 	}
 }
 
@@ -85,12 +85,12 @@ func WithAnnouncing() DbOption {
 // Note: If existing Records were encrypted, Get operations will
 // fail unless this option is set.
 func WithEncryption() DbOption {
-	return func(Db *Db) error {
-		return Db.setEncryption(true)
+	return func(starkdb *Db) error {
+		return starkdb.setEncryption(true)
 	}
 }
 
-// OpenDB opens a new instance of a starkDB.
+// OpenDB opens a new instance of a starkdb.
 //
 // If there is an existing database in the specified local
 // storage location, which has the specified project name,
@@ -104,7 +104,7 @@ func OpenDB(options ...DbOption) (*Db, func() error, error) {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	// create the uninitialised DB
-	starkDB := &Db{
+	starkdb := &Db{
 		ctx:       ctx,
 		ctxCancel: cancel,
 		cidLookup: make(map[string]string),
@@ -122,70 +122,66 @@ func OpenDB(options ...DbOption) (*Db, func() error, error) {
 
 	// add the provided options
 	for _, option := range options {
-		err := option(starkDB)
+		err := option(starkdb)
 		if err != nil {
 			return nil, nil, errors.Wrap(err, ErrDbOption.Error())
 		}
 	}
 
 	// init the IPFS client
-	client, err := starkipfs.NewIPFSclient(starkDB.ctx, starkDB.bootstrappers)
+	client, err := starkipfs.NewIPFSclient(starkdb.ctx, starkdb.bootstrappers)
 	if err != nil {
 		return nil, nil, err
 	}
-	starkDB.ipfsClient = client
+	starkdb.ipfsClient = client
 
 	// if no base CID was provided, initialise a snapshot
-	if len(starkDB.snapshotCID) == 0 {
-		cid, err := starkDB.ipfsClient.NewDagNode(starkDB.ctx)
+	if len(starkdb.snapshotCID) == 0 {
+		cid, err := starkdb.ipfsClient.NewDagNode(starkdb.ctx)
 		if err != nil {
 			return nil, nil, errors.Wrap(err, ErrSnapshotUpdate.Error())
 		}
-		starkDB.snapshotCID = cid
+		starkdb.snapshotCID = cid
 	} else {
 
 		// populate the lookup map with the existing snapshot
-		links, err := starkDB.ipfsClient.GetNodeLinks(starkDB.ctx, starkDB.snapshotCID)
+		links, err := starkdb.ipfsClient.GetNodeLinks(starkdb.ctx, starkdb.snapshotCID)
 		if err != nil {
 			return nil, nil, errors.Wrap(err, ErrInvalidSnapshot.Error())
 		}
 		for _, link := range links {
-			starkDB.cidLookup[link.Name] = link.Cid.String()
+			starkdb.cidLookup[link.Name] = link.Cid.String()
 		}
 	}
 
 	// set the stats
-	starkDB.currentNumEntries = len(starkDB.cidLookup)
+	starkdb.currentNumEntries = len(starkdb.cidLookup)
 
 	// return the teardown so we can ensure it happens
-	return starkDB, starkDB.teardown, nil
+	return starkdb, starkdb.teardown, nil
 }
 
 // teardown will close down all the open guff
 // nicely.
-func (Db *Db) teardown() error {
-	Db.Lock()
-	defer Db.Unlock()
+func (starkdb *Db) teardown() error {
+	starkdb.Lock()
 
 	// cancel the db context
-	Db.ctxCancel()
+	starkdb.ctxCancel()
 
 	// close IPFS
-	if err := Db.ipfsClient.EndSession(); err != nil {
+	if err := starkdb.ipfsClient.EndSession(); err != nil {
 		return err
 	}
-
-	// check the node is offline
-	if Db.isOnline() {
-		return ErrNodeOnline
-	}
+	starkdb.Unlock()
+	*starkdb = Db{}
 	return nil
 }
 
 // setProject will set the database project.
-func (Db *Db) setProject(project string) error {
-	Db.Lock()
-	defer Db.Unlock()
+func (starkdb *Db) setProject(project string) error {
+	starkdb.Lock()
+	defer starkdb.Unlock()
 
 	// sanitize the project name
 	project = strings.ReplaceAll(project, " ", "_")
@@ -194,48 +190,48 @@ func (Db *Db) setProject(project string) error {
 	}
 
 	// set it
-	Db.project = project
+	starkdb.project = project
 	return nil
 }
 
 // setSnapshotCID will set the snapshot CID.
-func (Db *Db) setSnapshotCID(cid string) error {
+func (starkdb *Db) setSnapshotCID(cid string) error {
 	if len(cid) == 0 {
 		return ErrNoCID
 	}
-	Db.snapshotCID = cid
+	starkdb.snapshotCID = cid
 	return nil
 }
 
 // setBootstrappers will set the bootstrapper nodes
 // to use for IPFS peer discovery.
-func (Db *Db) setBootstrappers(nodeList []string) error {
+func (starkdb *Db) setBootstrappers(nodeList []string) error {
 	if len(nodeList) < DefaultMinBootstrappers {
 		return ErrBootstrappers
 	}
-	Db.bootstrappers = nodeList
+	starkdb.bootstrappers = nodeList
 	return nil
 }
 
 // setPinning sets the underlying IPFS node's
 // pinning flag.
-func (Db *Db) setPinning(pin bool) error {
-	Db.pinning = pin
+func (starkdb *Db) setPinning(pin bool) error {
+	starkdb.pinning = pin
 	return nil
 }
 
 // setAnnouncing sets the database to announcing
 // new records via PubSub.
-func (Db *Db) setAnnouncing(announcing bool) error {
-	Db.announcing = announcing
+func (starkdb *Db) setAnnouncing(announcing bool) error {
+	starkdb.announcing = announcing
 	return nil
 }
 
 // setEncryption tells starkDB to make encrypted
 // writes.
-func (Db *Db) setEncryption(val bool) error {
+func (starkdb *Db) setEncryption(val bool) error {
 	if val == false {
-		Db.cipherKey = nil
+		starkdb.cipherKey = nil
 		return nil
 	}
 
@@ -252,13 +248,13 @@ func (Db *Db) setEncryption(val bool) error {
 	}
 
 	// set the key
-	Db.cipherKey = cipherKey
+	starkdb.cipherKey = cipherKey
 	return nil
 }
 
 // setKeyLimit tells the starkDB maximum number of
 // keys to allow.
-func (Db *Db) setKeyLimit(val int) error {
-	Db.maxEntries = val
+func (starkdb *Db) setKeyLimit(val int) error {
+	starkdb.maxEntries = val
 	return nil
 }
