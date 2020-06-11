@@ -60,7 +60,7 @@ func runGet(projectName, key string) {
 	// init the database
 	log.Info("fetching database...")
 	projs := viper.GetStringMapString("Databases")
-	projectPath, ok := projs[projectName]
+	projectSnapshot, ok := projs[projectName]
 	if !ok {
 		log.Fatalf("no project found for: %v", projectName)
 		os.Exit(1)
@@ -70,7 +70,9 @@ func runGet(projectName, key string) {
 	// setup the db opts
 	dbOpts := []starkdb.DbOption{
 		starkdb.SetProject(projectName),
-		starkdb.SetLocalStorageDir(projectPath),
+	}
+	if len(projectSnapshot) != 0 {
+		dbOpts = append(dbOpts, starkdb.SetSnapshotCID(projectSnapshot))
 	}
 	if announce {
 		log.Info("\tusing announce")

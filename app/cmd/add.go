@@ -65,7 +65,7 @@ func runAdd(projectName, key string) {
 	// init the database
 	log.Info("fetching database...")
 	projs := viper.GetStringMapString("Databases")
-	projectPath, ok := projs[projectName]
+	projectSnapshot, ok := projs[projectName]
 	if !ok {
 		log.Fatalf("no project found for: %v", projectName)
 		os.Exit(1)
@@ -75,7 +75,9 @@ func runAdd(projectName, key string) {
 	// setup the db opts
 	dbOpts := []starkdb.DbOption{
 		starkdb.SetProject(projectName),
-		starkdb.SetLocalStorageDir(projectPath),
+	}
+	if len(projectSnapshot) != 0 {
+		dbOpts = append(dbOpts, starkdb.SetSnapshotCID(projectSnapshot))
 	}
 	if announce {
 		log.Info("\tusing announce")
@@ -111,11 +113,20 @@ func runAdd(projectName, key string) {
 	if err := db.Set(key, record); err != nil {
 		log.Fatal(err)
 	}
-	cid, err := db.GetCID(key)
+
+	// update snapshot
+	newSnapshot := db.GetSnapshot()
+	if len(newSnapshot) == 0 {
+		log.Fatal("no snapshot CID produced by database")
+	}
+	conf, err := config.DumpConfig2Mem()
 	if err != nil {
 		log.Fatal(err)
 	}
-	log.Infof("\tkey: %v", key)
-	log.Infof("\tcid: %v", cid)
+	conf.Databases[projectName] = newSnapshot
+	if err := conf.WriteConfig(); err != nil {
+		log.Fatal(err)
+	}
+	log.Infof("\tdb snapshot: %v", newSnapshot)
 	log.Info("done.")
 }

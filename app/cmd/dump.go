@@ -23,7 +23,6 @@ package cmd
 
 import (
 	"fmt"
-	"os"
 
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
@@ -56,14 +55,16 @@ func runDump(projectName string) {
 
 	// get the database local storage path
 	projs := viper.GetStringMapString("Databases")
-	projectPath, ok := projs[projectName]
+	projectSnapshot, ok := projs[projectName]
 	if !ok {
 		log.Fatalf("no project found for: %v", projectName)
-		os.Exit(1)
+	}
+	if len(projectSnapshot) == 0 {
+		log.Fatalf("database is empty for: %v", projectName)
 	}
 
 	// open the db
-	db, dbCloser, err := starkdb.OpenDB(starkdb.SetProject(projectName), starkdb.SetLocalStorageDir(projectPath))
+	db, dbCloser, err := starkdb.OpenDB(starkdb.SetProject(projectName), starkdb.SetSnapshotCID(projectSnapshot))
 	if err != nil {
 		log.Fatal(err)
 	}

@@ -31,10 +31,6 @@ import (
 	"github.com/will-rowe/stark/app/config"
 )
 
-var (
-	projectPath *string
-)
-
 // initCmd represents the init command
 var initCmd = &cobra.Command{
 	Use:   "init <project name>",
@@ -42,8 +38,8 @@ var initCmd = &cobra.Command{
 	Long: `This subcommand will initialise a stark database.
 	
 	A database will be setup for the provided project name.
-	The database project and local storage directory will be
-	added to the stark app's config file.`,
+	The database project and CID will be added to the stark
+	app's config file.`,
 	Args: cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		runInit(args[0])
@@ -52,14 +48,12 @@ var initCmd = &cobra.Command{
 
 func init() {
 	rootCmd.AddCommand(initCmd)
-	projectPath = initCmd.Flags().StringP("projectPath", "p", "/tmp", "Directory to store local project data")
 }
 
 func runInit(projectName string) {
 	config.StartLog("init")
 	log.Info("initialising database...")
 	log.Infof("\tproject name: %v", projectName)
-	log.Infof("\tlocal data: %v/%v", *projectPath, projectName)
 
 	// check we don't have a database for this project yet
 	projs := viper.GetStringMapString("Databases")
@@ -73,11 +67,12 @@ func runInit(projectName string) {
 	if err != nil {
 		log.Fatal(err)
 	}
-	conf.Databases[projectName] = *projectPath
+	conf.Databases[projectName] = ""
 
-	// check the DB can be opened at the location
+	// check the DB can be opened
+	// TODO: more checks to go here
 	log.Info("checking new database...")
-	_, dbCloser, err := starkdb.OpenDB(starkdb.SetProject(projectName), starkdb.SetLocalStorageDir(*projectPath))
+	_, dbCloser, err := starkdb.OpenDB(starkdb.SetProject(projectName))
 	if err != nil {
 		log.Fatal(err)
 	}
