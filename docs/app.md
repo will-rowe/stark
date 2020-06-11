@@ -1,4 +1,12 @@
-# The App
+# The STARK app
+
+## Installing
+
+### Conda
+
+### Release
+
+### Source
 
 ## Commands
 

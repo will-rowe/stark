@@ -37,83 +37,22 @@
 - `records` are defined in [protobuf](https://developers.google.com/protocol-buffers) format (which is compiled with Go bindings using [this makefile](./schema/Makefile))
 - currently, `records` are serialised to JSON for IPFS transactions
 
+## Installation
+
 ### Requirements
 
 Both the Go package and the Command Line Utility require `go-ipfs`. See download and install instructions [here](https://docs.ipfs.io/guides/guides/install/).
 
-## The Go Package
-
-View the [Go Documentation](https://pkg.go.dev/github.com/will-rowe/stark) site for the **stark** detailed docs.
-
-### Install
+### As a Go package
 
 ```sh
 go get -d github.com/will-rowe/stark
 ```
 
-### Usage example
+### As an app
 
-```Go
-// This basic program will create a new database, add a record to it and then retrieve a copy of that record.
-package main
+TODO
 
-import (
-	"fmt"
+## Documentation
 
-	"github.com/will-rowe/stark"
-)
-
-func main() {
-
-	// init a starkDB
-	db, dbCloser, err := stark.OpenDB(stark.SetProject("my project"))
-	if err != nil {
-		panic(err)
-	}
-
-	// defer the database closer
-	defer dbCloser()
-
-	// create a record
-	record, err := stark.NewRecord(stark.SetAlias("my first sample"))
-	if err != nil {
-		panic(err)
-	}
-
-	// add record to starkDB
-	err = db.Set("lookupKey", record)
-	if err != nil {
-		panic(err)
-	}
-
-	// retrieve record from the starkDB
-	retrievedSample, err := db.Get("lookupKey")
-	if err != nil {
-		panic(err)
-	}
-	fmt.Println(retrievedSample.GetAlias())
-
-	// you can also view the record in the IPFS
-	link, err := db.GetExplorerLink("lookupKey")
-	if err != nil {
-		panic(err)
-	}
-	fmt.Printf("view record on the IPFS: %v\n", link)
-}
-```
-
-## The Command Line Utility
-
-> this is a work in progress....
-
-## Notes
-
-- each instance of a database is linked to a project, re-opening a database with the same project name will edit that database
-- the `OpenDB` and `NewRecord` consructor functions use functional options to set struct values - this is in an effort to keep the API stable (see [here](https://dave.cheney.net/2014/10/17/functional-options-for-friendly-apis))
-- if a record is retrieved from the database and updated, you need to then re-add it to the database. In other words, a **stark database** only records the most recent version of a record commited to the IPFS
-- records have a history, which can be used to rollback changes to other version of the record that entered the IPFS
-- even though schema is in protobuf, most of the time it's marshaling to JSON to pass stuff around
-- Record methods are not threadsafe - the database passes around copies of Records so this isn't much of an issue atm. The idea is that users of the library will end up turning Record data into something more usable and won't operate on them after initial Set/Gets
-- Encryption is a WIP, currently only a Record's UUID will be encrypted as a proof of functionality. Encrypted Records are decrypted on retrieval, but this will fail if the database instance requesting them doesn't have the correct password.
-
-nextflow run nf-core/mag --reads '/cephfs/lomanlabz/will/BBSRC/BAMBI-DATA/22027\_\*{1,2}.fastq.gz' -profile conda
+View the [Go Documentation](https://pkg.go.dev/github.com/will-rowe/stark) site for package documentation or visit [readthedocs]() pages for more information on the app.
