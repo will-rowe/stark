@@ -6,6 +6,7 @@
   <a href="https://godoc.org/github.com/will-rowe/stark"><img src="https://godoc.org/github.com/will-rowe/stark?status.svg" alt="GoDoc"></a>
   <a href="https://goreportcard.com/report/github.com/will-rowe/stark"><img src="https://goreportcard.com/badge/github.com/will-rowe/stark" alt="goreportcard"></a>
   <a href="https://codecov.io/gh/will-rowe/stark"><img src="https://codecov.io/gh/will-rowe/stark/branch/master/graph/badge.svg" alt="codecov"></a>
+  <a href='https://stark-docs.readthedocs.io/en/latest/?badge=latest'><img src='https://readthedocs.org/projects/stark-docs/badge/?version=latest' alt='Documentation Status'></a>
 </div>
 
 > WIP: The database works and the API is relatively stable. The CLI is in development.
@@ -55,4 +56,4 @@ TODO
 
 ## Documentation
 
-View the [Go Documentation](https://pkg.go.dev/github.com/will-rowe/stark) site for package documentation or visit [readthedocs]() pages for more information on the app.
+View the [Go Documentation](https://pkg.go.dev/github.com/will-rowe/stark) site for package documentation or visit [readthedocs](https://stark-docs.readthedocs.io/en/latest/) pages for more information on the app.
