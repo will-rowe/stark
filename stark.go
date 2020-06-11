@@ -131,12 +131,8 @@ type Db struct {
 	maxEntries    int      // the maximum number of keys a starkDB instance can hold
 	cipherKey     []byte   // cipher key for encrypted DB instances
 
-	// not yet implemented:
-	allowNetwork bool // controls the IPFS node's network connection // TODO: not yet implemented (thinking of local dbs)
-
 	// db stats
 	currentNumEntries int // the number of keys in the keystore (checked on db open and then incremented/decremented during Set/Delete ops)
-
 }
 
 // DbOption is a wrapper struct used to pass functional

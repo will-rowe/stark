@@ -117,7 +117,6 @@ func OpenDB(options ...DbOption) (*Db, func() error, error) {
 		maxEntries:    DefaultMaxEntries,
 		cipherKey:     nil,
 		bootstrappers: starkipfs.DefaultBootstrappers,
-		allowNetwork:  true, // currently un-implemented
 	}
 
 	// add the provided options

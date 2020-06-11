@@ -215,5 +215,5 @@ func (starkdb *Db) publishAnnouncement(message []byte) error {
 // and the IPFS daemon is reachable.
 // TODO: this needs some more work.
 func (starkdb *Db) isOnline() bool {
-	return starkdb.ipfsClient.Online() && starkdb.allowNetwork
+	return starkdb.ipfsClient.Online()
 }
