@@ -111,20 +111,10 @@ func (starkdb *Db) GetNodeAddr() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return fmt.Sprintf("/ip4/%s/tcp/4001/p2p/%s", add, id), nil
+	return fmt.Sprintf("/ip4/%s/tcp/4001/p2p/%s", add, nodeID), nil
 }
 
-/*
-// GetExplorerLink will return an IPFS explorer link for
-// a CID in the starkDB given the provided lookup key.
-func (starkdb *Db) GetExplorerLink(key string) (string, error) {
-	cid, ok := starkdb.keystoreGet(key)
-	if !ok {
-		return "", fmt.Errorf("could not retrieve CID from local keystore")
-	}
-	return fmt.Sprintf("IPLD Explorer link: https://explore.ipld.io/#/explore/%s \n", cid), nil
-}
-*/
+// PinataPublish
 
 // Listen will start a subscription to the IPFS PubSub network
 // for messages matching the current database's project. It
