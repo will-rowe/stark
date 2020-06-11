@@ -164,8 +164,8 @@ func OpenDB(options ...DbOption) (*Db, func() error, error) {
 // teardown will close down all the open guff
 // nicely.
 func (Db *Db) teardown() error {
-	Db.lock.Lock()
-	defer Db.lock.Unlock()
+	Db.Lock()
+	defer Db.Unlock()
 
 	// cancel the db context
 	Db.ctxCancel()
@@ -184,8 +184,8 @@ func (Db *Db) teardown() error {
 
 // setProject will set the database project.
 func (Db *Db) setProject(project string) error {
-	Db.lock.Lock()
-	defer Db.lock.Unlock()
+	Db.Lock()
+	defer Db.Unlock()
 
 	// sanitize the project name
 	project = strings.ReplaceAll(project, " ", "_")

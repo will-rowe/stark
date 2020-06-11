@@ -15,8 +15,8 @@ import (
 // Set adds a comment to the Record's history before adding it to the
 // IPFS.
 func (Db *Db) Set(key string, record *Record) error {
-	Db.lock.Lock()
-	defer Db.lock.Unlock()
+	Db.Lock()
+	defer Db.Unlock()
 
 	// max entry check
 	if Db.currentNumEntries == Db.maxEntries {
@@ -94,8 +94,8 @@ func (Db *Db) Set(key string, record *Record) error {
 
 // Get will retrieve a Record from the starkDB using the provided key.
 func (Db *Db) Get(key string) (*Record, error) {
-	Db.lock.Lock()
-	defer Db.lock.Unlock()
+	Db.Lock()
+	defer Db.Unlock()
 
 	// check the local keystore for the provided key
 	cid, ok := Db.cidLookup[key]
@@ -114,8 +114,8 @@ func (Db *Db) Get(key string) (*Record, error) {
 // Note: I'm not sure how this behaves if the Record
 // wasn't pinned in the IPFS in the first place.
 func (Db *Db) Delete(key string) error {
-	Db.lock.Lock()
-	defer Db.lock.Unlock()
+	Db.Lock()
+	defer Db.Unlock()
 
 	// check the local keystore for the provided key
 	cid, ok := Db.cidLookup[key]

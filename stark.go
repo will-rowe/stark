@@ -115,11 +115,11 @@ var (
 
 // Db is the starkDB database.
 type Db struct {
-	lock       sync.Mutex // protects access to the bound IPFS node
-	ctx        context.Context
-	ctxCancel  context.CancelFunc
-	ipfsClient *starkipfs.Client // wraps the IPFS core API, node and PubSub channels
-	cidLookup  map[string]string // quick access to Record CIDs using user-supplied keys
+	sync.RWMutex // protects access to the bound IPFS node
+	ctx          context.Context
+	ctxCancel    context.CancelFunc
+	ipfsClient   *starkipfs.Client // wraps the IPFS core API, node and PubSub channels
+	cidLookup    map[string]string // quick access to Record CIDs using user-supplied keys
 
 	// user-defined settings
 	project       string   // the project which the database instance is managing

@@ -66,8 +66,8 @@ func (Db *Db) DumpMetadata() (string, error) {
 // Note: if the database has no entries, the
 // returned snapshot will be a nil string.
 func (Db *Db) GetSnapshot() string {
-	Db.lock.Lock()
-	defer Db.lock.Unlock()
+	Db.Lock()
+	defer Db.Unlock()
 	if Db.currentNumEntries == 0 {
 		return ""
 	}
@@ -77,16 +77,16 @@ func (Db *Db) GetSnapshot() string {
 // GetCIDs will return a map of keys to CIDs for
 // all Records currently held in the database.
 func (Db *Db) GetCIDs() map[string]string {
-	Db.lock.Lock()
-	defer Db.lock.Unlock()
+	Db.Lock()
+	defer Db.Unlock()
 	return Db.cidLookup
 }
 
 // GetNodeIdentity returns the PeerID of the underlying IPFS
 // node for the starkDB instance.
 func (Db *Db) GetNodeIdentity() (string, error) {
-	Db.lock.Lock()
-	defer Db.lock.Unlock()
+	Db.Lock()
+	defer Db.Unlock()
 	if !Db.isOnline() {
 		return "", ErrNodeOffline
 	}
@@ -101,8 +101,8 @@ func (Db *Db) GetNodeIdentity() (string, error) {
 // underlying IPFS node for the starkDB
 // instance.
 func (Db *Db) GetNodeAddr() (string, error) {
-	Db.lock.Lock()
-	defer Db.lock.Unlock()
+	Db.Lock()
+	defer Db.Unlock()
 	if !Db.isOnline() {
 		return "", ErrNodeOffline
 	}
