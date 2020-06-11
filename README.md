@@ -24,7 +24,7 @@
 ### The database
 
 - **stark databases** track, update and share sequence `records`
-- the database groups `records` by `projects`, databases can contain `records` from other `projects`
+- a database is aliased by a `project name` which groups the `records`
 - `projects` and `records` are DAG nodes in the [IPFS](https://ipfs.io/)
 - DAG `links` are created between `records` and the `projects` that use them
 - `records` and `projects` are pointed to by `content identifiers (CIDs)`
@@ -115,3 +115,5 @@ func main() {
 - even though schema is in protobuf, most of the time it's marshaling to JSON to pass stuff around
 - Record methods are not threadsafe - the database passes around copies of Records so this isn't much of an issue atm. The idea is that users of the library will end up turning Record data into something more usable and won't operate on them after initial Set/Gets
 - Encryption is a WIP, currently only a Record's UUID will be encrypted as a proof of functionality. Encrypted Records are decrypted on retrieval, but this will fail if the database instance requesting them doesn't have the correct password.
+
+nextflow run nf-core/mag --reads '/cephfs/lomanlabz/will/BBSRC/BAMBI-DATA/22027\_\*{1,2}.fastq.gz' -profile conda

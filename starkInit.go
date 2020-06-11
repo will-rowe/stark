@@ -13,7 +13,10 @@ import (
 
 // SetProject is an option setter for the OpenDB
 // constructor that sets the project for the
-// database.
+// database instance.
+// The project name is used to broadcast
+// messages when Records are added to the
+// database instance.
 func SetProject(project string) DbOption {
 	return func(starkdb *Db) error {
 		return starkdb.setProject(project)

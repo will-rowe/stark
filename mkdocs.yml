@@ -1,0 +1,9 @@
+site_name: stark-docs
+repo_url: https://github.com/will-rowe/stark
+site_author: Will Rowe
+nav:
+  - Home: index.md
+  - Installation: installation.md
+  - The App: app.md
+  - FAQ: faq.md
+theme: readthedocs
