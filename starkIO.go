@@ -18,11 +18,6 @@ func (starkdb *Db) Set(key string, record *Record) error {
 	starkdb.Lock()
 	defer starkdb.Unlock()
 
-	// max entry check
-	if starkdb.currentNumEntries == starkdb.maxEntries {
-		return ErrMaxEntriesExceeded
-	}
-
 	// check the local keystore to see if this key has been used before
 	if existingCID, exists := starkdb.cidLookup[key]; exists {
 

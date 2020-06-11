@@ -32,9 +32,6 @@ const (
 	// DefaultBufferSize is the maximum number of records stored in channels.
 	DefaultBufferSize = 42
 
-	// DefaultMaxEntries is the maximum number of keys a starkDB can hold.
-	DefaultMaxEntries = 10000
-
 	// DefaultMinBootstrappers is the minimum number of reachable bootstrappers required.
 	DefaultMinBootstrappers = 3
 
@@ -70,12 +67,6 @@ var (
 
 	// ErrLinkExists indicates a Record is already linked to the provided UUID.
 	ErrLinkExists = fmt.Errorf("Record already linked to the provided UUID")
-
-	// ErrMaxEntriesExceeded inidicates maximum number of entries has been exceeded by starkDB.
-	ErrMaxEntriesExceeded = fmt.Errorf("maximum number of entries exceeded by starkDB")
-
-	// ErrNewDb is issued when NewDb fails.
-	ErrNewDb = fmt.Errorf("could not initialise a starkDB")
 
 	// ErrNoCID indicates no CID was provided.
 	ErrNoCID = fmt.Errorf("no CID was provided")
@@ -123,12 +114,10 @@ type Db struct {
 
 	// user-defined settings
 	project       string   // the project which the database instance is managing
-	keystorePath  string   // local keystore location
 	bootstrappers []string // list of addresses to use for IPFS peer discovery
 	snapshotCID   string   // the optional snapshot CID provided during database opening
 	pinning       bool     // if true, IPFS IO will be done with pinning
 	announcing    bool     // if true, new records added to the IPFS will be broadcast on the pubsub topic for this project
-	maxEntries    int      // the maximum number of keys a starkDB instance can hold
 	cipherKey     []byte   // cipher key for encrypted DB instances
 
 	// db stats

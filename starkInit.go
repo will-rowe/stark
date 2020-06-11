@@ -37,23 +37,14 @@ func SetSnapshotCID(path string) DbOption {
 }
 
 // SetBootstrappers is an option setter for the OpenDB
-// constructor that sets list of bootstrapper nodes to
-// use for IPFS peer discovery.
+// constructor that sets the list of bootstrapper nodes
+// to use for IPFS peer discovery.
 //
 // Note: a default list of bootstrappers will be used
 // if this option setter is omitted.
 func SetBootstrappers(bootstrapperList []string) DbOption {
 	return func(starkdb *Db) error {
 		return starkdb.setBootstrappers(bootstrapperList)
-	}
-}
-
-// SetKeyLimit is an option setter for the OpenDB constructor
-// that tells starkDB instance the maximum number of keys it
-// can hold.
-func SetKeyLimit(val int) DbOption {
-	return func(starkdb *Db) error {
-		return starkdb.setKeyLimit(val)
 	}
 }
 
@@ -117,7 +108,6 @@ func OpenDB(options ...DbOption) (*Db, func() error, error) {
 		snapshotCID:   "",
 		pinning:       true,
 		announcing:    false,
-		maxEntries:    DefaultMaxEntries,
 		cipherKey:     nil,
 		bootstrappers: starkipfs.DefaultBootstrappers,
 	}
@@ -251,12 +241,5 @@ func (starkdb *Db) setEncryption(val bool) error {
 
 	// set the key
 	starkdb.cipherKey = cipherKey
-	return nil
-}
-
-// setKeyLimit tells the starkDB maximum number of
-// keys to allow.
-func (starkdb *Db) setKeyLimit(val int) error {
-	starkdb.maxEntries = val
 	return nil
 }

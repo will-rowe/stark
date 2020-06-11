@@ -165,10 +165,9 @@ func TestIpfsPubSub(t *testing.T) {
 // TestNewDB will check database initialisation and set/get operation.
 func TestNewDB(t *testing.T) {
 	numBootstrappers := 3
-	numEntries := 1
 
 	// init the starkDB
-	starkdb, teardown, err := OpenDB(SetProject(testProject), SetBootstrappers(starkipfs.DefaultBootstrappers[:numBootstrappers]), SetKeyLimit(numEntries))
+	starkdb, teardown, err := OpenDB(SetProject(testProject), SetBootstrappers(starkipfs.DefaultBootstrappers[:numBootstrappers]))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -185,6 +184,9 @@ func TestNewDB(t *testing.T) {
 	}
 	if starkdb.announcing {
 		t.Fatal("starkDB is announcing but was not told to")
+	}
+	if starkdb.GetNumEntries() != 0 {
+		t.Fatal("new starkDB is not empty")
 	}
 
 	// create a record
@@ -204,15 +206,13 @@ func TestNewDB(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Log(retrievedSample)
+	if starkdb.GetNumEntries() != 1 {
+		t.Fatal("starkDB has incorrect entry count: ", starkdb.GetNumEntries())
+	}
 
 	// try adding duplicate record
 	if err := starkdb.Set(testKey, testRecord); err == nil {
 		t.Fatal("duplicate sample was added")
-	}
-
-	// try adding a non-duplicate record
-	if err := starkdb.Set("another key", testRecord); err != ErrMaxEntriesExceeded {
-		t.Fatal("samples in starkDB exceed set limit")
 	}
 
 	// test JSON dump of metadata

@@ -10,11 +10,9 @@ import (
 type dbMetadata struct {
 	Project     string      `json:"project"`
 	Snapshot    string      `json:"snapshot"`
-	Host        string      `json:"host_node"`
 	HostAdd     string      `json:"host_address"`
 	Pinning     bool        `json:"pinning"`
 	Announcing  bool        `json:"announcing"`
-	MaxEntries  int         `json:"max_entries"`
 	CurrEntries int         `json:"current_entries"`
 	Pairs       [][2]string `json:"contents"`
 }
@@ -23,10 +21,6 @@ type dbMetadata struct {
 // interface for the Db but restricts data to that
 // specified by the dbMetadata struct.
 func (starkdb *Db) MarshalJSON() ([]byte, error) {
-	nodeID, err := starkdb.GetNodeIdentity()
-	if err != nil {
-		return nil, err
-	}
 	nodeAdd, err := starkdb.GetNodeAddr()
 	if err != nil {
 		return nil, err
@@ -40,11 +34,9 @@ func (starkdb *Db) MarshalJSON() ([]byte, error) {
 	return json.Marshal(dbMetadata{
 		starkdb.project,
 		starkdb.snapshotCID,
-		nodeID,
 		nodeAdd,
 		starkdb.pinning,
 		starkdb.announcing,
-		starkdb.maxEntries,
 		starkdb.currentNumEntries,
 		pairs,
 	})
@@ -74,6 +66,14 @@ func (starkdb *Db) GetSnapshot() string {
 	return starkdb.snapshotCID
 }
 
+// GetNumEntries returns the number of entries
+// in the current database instance.
+func (starkdb *Db) GetNumEntries() int {
+	starkdb.Lock()
+	defer starkdb.Unlock()
+	return starkdb.currentNumEntries
+}
+
 // GetCIDs will return a map of keys to CIDs for
 // all Records currently held in the database.
 func (starkdb *Db) GetCIDs() map[string]string {
@@ -101,18 +101,15 @@ func (starkdb *Db) GetNodeIdentity() (string, error) {
 // underlying IPFS node for the starkDB
 // instance.
 func (starkdb *Db) GetNodeAddr() (string, error) {
-	starkdb.Lock()
-	defer starkdb.Unlock()
-	if !starkdb.isOnline() {
-		return "", ErrNodeOffline
-	}
-	add, err := starkdb.ipfsClient.GetPublicIPv4Addr()
+	nodeID, err := starkdb.GetNodeIdentity()
 	if err != nil {
 		return "", err
 	}
-	id := starkdb.ipfsClient.PrintNodeID()
-	if len(id) == 0 {
-		return "", ErrNoPeerID
+	starkdb.Lock()
+	defer starkdb.Unlock()
+	add, err := starkdb.ipfsClient.GetPublicIPv4Addr()
+	if err != nil {
+		return "", err
 	}
 	return fmt.Sprintf("/ip4/%s/tcp/4001/p2p/%s", add, id), nil
 }
