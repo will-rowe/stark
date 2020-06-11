@@ -2,11 +2,9 @@ package stark
 
 import (
 	"context"
-	"fmt"
 	"os"
 	"strings"
 
-	"github.com/dgraph-io/badger"
 	"github.com/pkg/errors"
 
 	starkcrypto "github.com/will-rowe/stark/src/crypto"
@@ -22,17 +20,16 @@ func SetProject(project string) DbOption {
 	}
 }
 
-// SetLocalStorageDir is an option setter for the OpenDB
-// constructor that sets the path to the local keystore.
-// It will create the director(y/ies) if not found.
-// If not provided, a default path will be used in /tmp
-//
-// Note: stark will create a project directory in this
-// location. This means the same local storage directory
-// can be provided to multiple starkDBs.
-func SetLocalStorageDir(path string) DbOption {
+// SetSnapshotCID is an option setter for the OpenDB
+// constructor that sets the base CID to use for the
+// database instance.
+// If none provided it will open an empty database,
+// otherwise it will check the provided CID and
+// populate the starkDB from the existing records
+// contained in the snapshot.
+func SetSnapshotCID(path string) DbOption {
 	return func(Db *Db) error {
-		return Db.setLocalStorage(path)
+		return Db.setSnapshotCID(path)
 	}
 }
 
@@ -81,17 +78,6 @@ func WithAnnouncing() DbOption {
 	}
 }
 
-// WithSnapshot is an option setter that opens a database
-// and then pulls in an existing database via a snapshot.
-//
-// Note: If opening an existing database, this will be
-// erased in place of the snapshotted database.
-func WithSnapshot(snapshotCID string) DbOption {
-	return func(Db *Db) error {
-		return Db.setSnapshotCID(snapshotCID)
-	}
-}
-
 // WithEncryption is an option setter for the OpenDB constructor
 // that tells starkDB to make encrypted writes to IPFS using the
 // password in STARK_DB_PASSWORD env variable.
@@ -121,10 +107,10 @@ func OpenDB(options ...DbOption) (*Db, func() error, error) {
 	starkDB := &Db{
 		ctx:       ctx,
 		ctxCancel: cancel,
+		cidLookup: make(map[string]string),
 
 		// defaults
 		project:       DefaultProject,
-		keystorePath:  DefaultLocalDbLocation,
 		snapshotCID:   "",
 		pinning:       true,
 		announcing:    false,
@@ -142,9 +128,6 @@ func OpenDB(options ...DbOption) (*Db, func() error, error) {
 		}
 	}
 
-	// now update the keystorePath variable to point to the requested project
-	starkDB.keystorePath = fmt.Sprintf("%s/%s", starkDB.keystorePath, starkDB.project)
-
 	// init the IPFS client
 	client, err := starkipfs.NewIPFSclient(starkDB.ctx, starkDB.bootstrappers)
 	if err != nil {
@@ -152,30 +135,27 @@ func OpenDB(options ...DbOption) (*Db, func() error, error) {
 	}
 	starkDB.ipfsClient = client
 
-	// if there was a snapshot CID provided, remove anything already in the
-	// keystore path that could conflict and then retrieve the database
-	// snapshot
-	if len(starkDB.snapshotCID) != 0 {
-		if err := os.RemoveAll(starkDB.keystorePath); err != nil {
-			return nil, nil, err
+	// if no base CID was provided, initialise a snapshot
+	if len(starkDB.snapshotCID) == 0 {
+		cid, err := starkDB.ipfsClient.NewDagNode(starkDB.ctx)
+		if err != nil {
+			return nil, nil, errors.Wrap(err, ErrSnapshotUpdate.Error())
 		}
-		if err := starkDB.ipfsClient.GetFile(starkDB.ctx, starkDB.snapshotCID, starkDB.keystorePath); err != nil {
-			return nil, nil, err
+		starkDB.snapshotCID = cid
+	} else {
+
+		// populate the lookup map with the existing snapshot
+		links, err := starkDB.ipfsClient.GetNodeLinks(starkDB.ctx, starkDB.snapshotCID)
+		if err != nil {
+			return nil, nil, errors.Wrap(err, ErrInvalidSnapshot.Error())
+		}
+		for _, link := range links {
+			starkDB.cidLookup[link.Name] = link.Cid.String()
 		}
 	}
 
-	// open up badger and attach to the starkDB
-	badgerOpts := badger.DefaultOptions(starkDB.keystorePath).WithLogger(nil)
-	ldb, err := badger.Open(badgerOpts)
-	if err != nil {
-		return nil, nil, errors.Wrap(err, ErrNewDb.Error())
-	}
-	starkDB.keystore = ldb
-
-	// update the database counts
-	if err := starkDB.refreshCount(); err != nil {
-		return nil, nil, err
-	}
+	// set the stats
+	starkDB.currentNumEntries = len(starkDB.cidLookup)
 
 	// return the teardown so we can ensure it happens
 	return starkDB, starkDB.teardown, nil
@@ -185,12 +165,7 @@ func OpenDB(options ...DbOption) (*Db, func() error, error) {
 // nicely.
 func (Db *Db) teardown() error {
 	Db.lock.Lock()
-	Db.lock.Unlock()
-
-	// close the local keystore
-	if err := Db.keystore.Close(); err != nil {
-		return err
-	}
+	defer Db.lock.Unlock()
 
 	// cancel the db context
 	Db.ctxCancel()
@@ -201,7 +176,7 @@ func (Db *Db) teardown() error {
 	}
 
 	// check the node is offline
-	if Db.IsOnline() {
+	if Db.isOnline() {
 		return ErrNodeOnline
 	}
 	return nil
@@ -209,6 +184,8 @@ func (Db *Db) teardown() error {
 
 // setProject will set the database project.
 func (Db *Db) setProject(project string) error {
+	Db.lock.Lock()
+	defer Db.lock.Unlock()
 
 	// sanitize the project name
 	project = strings.ReplaceAll(project, " ", "_")
@@ -221,23 +198,12 @@ func (Db *Db) setProject(project string) error {
 	return nil
 }
 
-// setLocalStorage will check if the director(y/ies) exist(s),
-// creates them if not, then sets the storage location for
-// the local key-value store.
-func (Db *Db) setLocalStorage(path string) error {
-	if len(path) == 0 {
-		return fmt.Errorf("no path provided for local database")
+// setSnapshotCID will set the snapshot CID.
+func (Db *Db) setSnapshotCID(cid string) error {
+	if len(cid) == 0 {
+		return ErrNoCID
 	}
-	if _, err := os.Stat(path); err != nil {
-		if os.IsNotExist(err) {
-			if err := os.MkdirAll(path, 0755); err != nil {
-				return err
-			}
-		} else {
-			return fmt.Errorf("can't access adirectory (check permissions): %v", path)
-		}
-	}
-	Db.keystorePath = path
+	Db.snapshotCID = cid
 	return nil
 }
 
@@ -294,15 +260,5 @@ func (Db *Db) setEncryption(val bool) error {
 // keys to allow.
 func (Db *Db) setKeyLimit(val int) error {
 	Db.maxEntries = val
-	return nil
-}
-
-// setSnapshotCID will record the CID of
-// a snapshotted database.
-func (Db *Db) setSnapshotCID(snapshotCID string) error {
-	if len(snapshotCID) == 0 {
-		return ErrNoCID
-	}
-	Db.snapshotCID = snapshotCID
 	return nil
 }

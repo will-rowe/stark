@@ -71,7 +71,7 @@ message Record {
     bool encrypted = 4;                          // set true to indicate if fields have been encrypted
     string sequencerOutputDirCID = 5;            // the CID of the output directory (field 9)
     
-    Status status = 6;                           // describes if untagged/tagged/etc.
+    //Status status = 6;                           // describes if untagged/tagged/etc.
 
     // user updateable:    
     string alias = 7;                            // the record name / human readable id

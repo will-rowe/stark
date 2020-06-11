@@ -29,11 +29,11 @@ const (
 	// DefaultBufferSize is used in the buffered PubSub channels.
 	DefaultBufferSize = 42
 
-	// DefaultFormat is the format of the input data for IPFS.
-	DefaultFormat = "cbor"
-
 	// DefaultIenc is the input encoding for the data will be added to the IPFS DAG.
 	DefaultIenc = "json"
+
+	// DefaultFormatParser is the format of the input data for IPFS.
+	DefaultFormatParser = "cbor"
 
 	// DefaultMhType is the multihash to use for DAG put operations.
 	DefaultMhType = uint64(math.MaxUint64) // use default hash (sha256 for cbor, sha1 for git..)
@@ -66,6 +66,9 @@ var (
 
 	// ErrRepoAlreadyInitialised is issued when an IPFS repo has already been initialised.
 	ErrRepoAlreadyInitialised = fmt.Errorf("specified IPFS repo is already initialised")
+
+	// ErrNoLinks is issued when no links are found in an IPFS DAG node.
+	ErrNoLinks = fmt.Errorf("no links found in IPFS DAG node")
 )
 
 // init will setup the IPFS repo

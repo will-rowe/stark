@@ -3,7 +3,6 @@ module github.com/will-rowe/stark
 go 1.14
 
 require (
-	github.com/dgraph-io/badger v1.6.1
 	github.com/gogo/protobuf v1.3.1
 	github.com/golang/protobuf v1.4.0
 	github.com/google/uuid v1.1.1
@@ -13,6 +12,7 @@ require (
 	github.com/ipfs/go-ipfs-files v0.0.8
 	github.com/ipfs/go-ipld-cbor v0.0.4
 	github.com/ipfs/go-ipld-format v0.2.0
+	github.com/ipfs/go-merkledag v0.3.2
 	github.com/ipfs/interface-go-ipfs-core v0.2.7
 	github.com/libp2p/go-libp2p-core v0.5.3
 	github.com/mitchellh/go-homedir v1.1.0

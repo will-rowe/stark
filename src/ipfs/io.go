@@ -1,8 +1,10 @@
 package ipfs
 
 import (
+	"bytes"
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"strings"
 
@@ -11,103 +13,11 @@ import (
 	"github.com/ipfs/go-ipfs/core/coredag"
 	cbor "github.com/ipfs/go-ipld-cbor"
 	ipld "github.com/ipfs/go-ipld-format"
+	merkle "github.com/ipfs/go-merkledag"
 	"github.com/ipfs/interface-go-ipfs-core/options"
 	"github.com/ipfs/interface-go-ipfs-core/path"
 	icorepath "github.com/ipfs/interface-go-ipfs-core/path"
 )
-
-// DagPut will append to an IPFS dag.
-func (client *Client) DagPut(ctx context.Context, data []byte, pinning bool) (string, error) {
-
-	// get the node adder
-	var adder ipld.NodeAdder = client.ipfs.Dag()
-	if pinning {
-		adder = client.ipfs.Dag().Pinning()
-	}
-	b := ipld.NewBatch(ctx, adder)
-
-	//
-	file := files.NewBytesFile(data)
-	if file == nil {
-		return "", fmt.Errorf("failed to convert input data for IPFS")
-	}
-
-	//
-	nds, err := coredag.ParseInputs(DefaultIenc, DefaultFormat, file, DefaultMhType, -1)
-	if err != nil {
-		return "", err
-	}
-	if len(nds) == 0 {
-		return "", fmt.Errorf("no node returned from ParseInputs")
-	}
-
-	//
-	for _, nd := range nds {
-		err := b.Add(ctx, nd)
-		if err != nil {
-			return "", err
-		}
-	}
-
-	// commit the batched nodes
-	if err := b.Commit(); err != nil {
-		return "", err
-	}
-	return nds[0].Cid().String(), nil
-}
-
-// DagGet will fetch a DAG node from the IPFS using the
-// provided CID.
-func (client *Client) DagGet(ctx context.Context, queryCID string) (interface{}, error) {
-
-	// get the IPFS path
-	rp, err := client.ipfs.ResolvePath(ctx, path.New(queryCID))
-	if err != nil {
-		return nil, err
-	}
-
-	// get holders ready
-	var obj ipld.Node
-
-	// detect what we're dealing with and check we're good before collecting the data
-	if rp.Cid().Type() == cid.DagCBOR {
-		obj, err = client.ipfs.Dag().Get(ctx, rp.Cid())
-		if err != nil {
-			return nil, err
-		}
-		_, isCborNode := obj.(*cbor.Node)
-		if !isCborNode {
-			return nil, fmt.Errorf("unsupported IPLD CID format (cid: %v)", queryCID)
-		}
-
-		// TODO: we could handle other types of node - using a type switch or some such
-		/*
-			} else if rp.Cid().Type() == cid.Raw {
-				obj, err = ipfsClient.coreAPI.Dag().Get(ipfsClient.ctx, rp.Cid())
-				if err != nil {
-					return nil, err
-				}
-				//	data = obj.RawData()
-		*/
-	} else {
-		return nil, fmt.Errorf("unsupported IPLD CID format (cid: %v)", queryCID)
-	}
-
-	// get the data ready for return
-	var out interface{} = obj
-
-	// grab the specified field if one was given
-	if len(rp.Remainder()) > 0 {
-		rem := strings.Split(rp.Remainder(), "/")
-		final, _, err := obj.Resolve(rem)
-		if err != nil {
-			return nil, err
-		}
-		out = final
-	}
-
-	return out, nil
-}
 
 // Unpin will unpin a CID from the IPFS.
 func (client *Client) Unpin(ctx context.Context, cidStr string) error {
@@ -149,6 +59,146 @@ func (client *Client) GetFile(ctx context.Context, cidStr, outputPath string) er
 		return (fmt.Errorf("could not write out the fetched CID: %s", err))
 	}
 	return nil
+}
+
+// NewDagNode will create a new UNIXFS formatted DAG node in the IPFS.
+func (client *Client) NewDagNode(ctx context.Context) (string, error) {
+	path, err := client.ipfs.Object().New(ctx, options.Object.Type("unixfs-dir"))
+	if err != nil {
+		return "", err
+	}
+	return path.Cid().String(), nil
+}
+
+// AddLink will add a link under the specified path. Child path can point to a
+// subdirectory within the patent, it will be created if not present.
+// It will return the new base CID and any error.
+func (client *Client) AddLink(ctx context.Context, baseCID, childCID, linkLabel string) (string, error) {
+	path, err := client.ipfs.Object().AddLink(ctx, path.New(baseCID), linkLabel, path.New(childCID), options.Object.Create(true))
+	if err != nil {
+		return "", err
+	}
+	return path.Cid().String(), nil
+}
+
+// RmLink will remove a link under the specified path.
+// It will return the new base CID and any error.
+func (client *Client) RmLink(ctx context.Context, baseCID, linkLabel string) (string, error) {
+	path, err := client.ipfs.Object().RmLink(ctx, path.New(baseCID), linkLabel)
+	if err != nil {
+		return "", err
+	}
+	return path.Cid().String(), nil
+}
+
+// GetNodeLinks returns the links from a node.
+func (client *Client) GetNodeLinks(ctx context.Context, nodeCID string) ([]*ipld.Link, error) {
+	linkList, err := client.ipfs.Object().Links(ctx, path.New(nodeCID))
+	if err != nil {
+		return nil, err
+	}
+	if len(linkList) == 0 {
+		return nil, ErrNoLinks
+	}
+	return linkList, nil
+}
+
+// GetNodeData will output a reader for the raw bytes
+// contained in an IPFS DAG node.
+func (client *Client) GetNodeData(ctx context.Context, nodeCID string) (io.Reader, error) {
+	dataReader, err := client.ipfs.Object().Data(ctx, path.New(nodeCID))
+	if err != nil {
+		return nil, err
+	}
+	return dataReader, nil
+}
+
+// DagPut will append to an IPFS dag.
+func (client *Client) DagPut(ctx context.Context, data []byte, pinning bool) (string, error) {
+
+	// convert the data to an IPFS file
+	file := files.NewReaderFile(bytes.NewReader(data))
+	if file == nil {
+		return "", fmt.Errorf("failed to convert input data for IPFS")
+	}
+
+	// create an IPLD format node(s)
+	nds, err := coredag.ParseInputs(DefaultIenc, DefaultFormatParser, file, DefaultMhType, -1)
+	if err != nil {
+		return "", err
+	}
+	if len(nds) == 0 {
+		return "", fmt.Errorf("no node returned from ParseInputs")
+	}
+
+	// get the node adder
+	var adder ipld.NodeAdder = client.ipfs.Dag()
+	if pinning {
+		adder = client.ipfs.Dag().Pinning()
+	}
+
+	// buffer the nodes
+	buf := ipld.NewBatch(ctx, adder)
+	for _, nd := range nds {
+		if err := buf.Add(ctx, nd); err != nil {
+			return "", err
+		}
+	}
+
+	// commit the batched nodes
+	if err := buf.Commit(); err != nil {
+		return "", err
+	}
+	return nds[0].Cid().String(), nil
+}
+
+// DagGet will fetch a DAG node from the IPFS using the
+// provided CID.
+func (client *Client) DagGet(ctx context.Context, queryCID string) (interface{}, error) {
+
+	// get the IPFS path
+	rp, err := client.ipfs.ResolvePath(ctx, path.New(queryCID))
+	if err != nil {
+		return nil, err
+	}
+
+	// get the root node
+	var obj ipld.Node
+	obj, err = client.ipfs.Dag().Get(ctx, rp.Cid())
+	if err != nil {
+		return nil, err
+	}
+
+	// detect what we're dealing with
+	switch rp.Cid().Type() {
+	case cid.DagProtobuf:
+		_, isProtoNode := obj.(*merkle.ProtoNode)
+		if !isProtoNode {
+			return nil, fmt.Errorf("node can't be cast to protobuf for: %v", rp.Cid().String())
+		}
+	case cid.DagCBOR:
+		_, isCborNode := obj.(*cbor.Node)
+		if !isCborNode {
+			return nil, fmt.Errorf("node can't be cast to cbor for: %v", rp.Cid().String())
+		}
+	default:
+		return nil, fmt.Errorf("unsupported IPLD CID format (%v = %v)", queryCID, rp.Cid().Type())
+	}
+
+	// get the data ready for return
+	var out interface{} = obj
+
+	// grab the specified field if one was given
+	if len(rp.Remainder()) > 0 {
+		rem := strings.Split(rp.Remainder(), "/")
+		final, _, err := obj.Resolve(rem)
+		if err != nil {
+			return nil, err
+		}
+		out = final
+	}
+
+	return out, nil
 }
 
 // getUnixfsNode takes a file/directory path and returns

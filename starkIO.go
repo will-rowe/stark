@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/dgraph-io/badger"
 	"github.com/gogo/protobuf/jsonpb"
 	cbor "github.com/ipfs/go-ipld-cbor"
 	"github.com/pkg/errors"
@@ -25,10 +24,10 @@ func (Db *Db) Set(key string, record *Record) error {
 	}
 
 	// check the local keystore to see if this key has been used before
-	if existingCID, exists := Db.keystoreGet(key); exists {
+	if existingCID, exists := Db.cidLookup[key]; exists {
 
 		// retrieve the record for this key
-		existingRecord, err := Db.GetRecordFromCID(existingCID)
+		existingRecord, err := Db.getRecordFromCID(existingCID)
 		if err != nil {
 			return err
 		}
@@ -71,17 +70,24 @@ func (Db *Db) Set(key string, record *Record) error {
 		return err
 	}
 
+	// link the record CID to the project directory and take a snapshot
+	snapshotUpdate, err := Db.ipfsClient.AddLink(Db.ctx, Db.snapshotCID, cid, key)
+	if err != nil {
+		return errors.Wrap(err, ErrSnapshotUpdate.Error())
+	}
+	Db.snapshotCID = snapshotUpdate
+
 	// if announcing, do it now
 	if Db.announcing {
+
+		// TODO: send proto data instead of CID
 		if err := Db.publishAnnouncement([]byte(cid)); err != nil {
 			return err
 		}
 	}
 
 	// add the returned CID to the local keystore
-	if err := Db.keystoreSet(key, cid); err != nil {
-		return err
-	}
+	Db.cidLookup[key] = cid
 	Db.currentNumEntries++
 	return nil
 }
@@ -92,13 +98,13 @@ func (Db *Db) Get(key string) (*Record, error) {
 	defer Db.lock.Unlock()
 
 	// check the local keystore for the provided key
-	cid, exists := Db.keystoreGet(key)
-	if !exists {
-		return nil, fmt.Errorf("%v: %v", ErrKeyNotFound, key)
+	cid, ok := Db.cidLookup[key]
+	if !ok {
+		return nil, ErrNotFound(key)
 	}
 
 	// use the helper method to retrieve the Record
-	return Db.GetRecordFromCID(cid)
+	return Db.getRecordFromCID(cid)
 }
 
 // Delete will delete an entry from starkDB. This involves
@@ -112,27 +118,34 @@ func (Db *Db) Delete(key string) error {
 	defer Db.lock.Unlock()
 
 	// check the local keystore for the provided key
-	cid, exists := Db.keystoreGet(key)
-	if !exists {
-		return fmt.Errorf("%v: %v", ErrKeyNotFound, key)
+	cid, ok := Db.cidLookup[key]
+	if !ok {
+		return ErrNotFound(key)
 	}
 
-	// unpin
+	// unlink the record CID from the project directory and update a snapshot
+	snapshotUpdate, err := Db.ipfsClient.RmLink(Db.ctx, Db.snapshotCID, key)
+	if err != nil {
+		return errors.Wrap(err, ErrSnapshotUpdate.Error())
+	}
+	Db.snapshotCID = snapshotUpdate
+
+	// unpin the file
 	if err := Db.ipfsClient.Unpin(Db.ctx, cid); err != nil {
 		return err
 	}
 
+	// TODO: if using a pinning service - will need to request an unpin there
+
 	// remove from the keystore
-	if err := Db.keystoreDelete(key); err != nil {
-		return err
-	}
+	delete(Db.cidLookup, key)
 	Db.currentNumEntries--
 	return nil
 }
 
-// GetRecordFromCID is a helper method that collects a Record from
+// getRecordFromCID is a helper method that collects a Record from
 // the IPFS using its CID string.
-func (Db *Db) GetRecordFromCID(cid string) (*Record, error) {
+func (Db *Db) getRecordFromCID(cid string) (*Record, error) {
 	if len(cid) == 0 {
 		return nil, ErrNoCID
 	}
@@ -172,82 +185,4 @@ func (Db *Db) GetRecordFromCID(cid string) (*Record, error) {
 	// add the pulled CID to this record
 	record.PreviousCID = cid
 	return record, nil
-}
-
-// GetCID will return an IPFS CID in the starkDB
-// for the provided lookup key.
-func (Db *Db) GetCID(key string) (string, error) {
-	cid, ok := Db.keystoreGet(key)
-	if !ok {
-		return "", fmt.Errorf("could not retrieve CID from local keystore")
-	}
-	return cid, nil
-}
-
-// GetExplorerLink will return an IPFS explorer link for
-// a CID in the starkDB given the provided lookup key.
-func (Db *Db) GetExplorerLink(key string) (string, error) {
-	cid, ok := Db.keystoreGet(key)
-	if !ok {
-		return "", fmt.Errorf("could not retrieve CID from local keystore")
-	}
-	return fmt.Sprintf("IPLD Explorer link: https://explore.ipld.io/#/explore/%s \n", cid), nil
-}
-
-// Snapshot copies the current database to the IPFS and
-// returns the CID needed for retrieval/sharing.
-func (Db *Db) Snapshot() (string, error) {
-	Db.lock.Lock()
-	defer Db.lock.Unlock()
-	if err := Db.keystore.Sync(); err != nil {
-		return "", err
-	}
-	if err := starkhelpers.CheckDir(Db.keystorePath); err != nil {
-		return "", err
-	}
-	cid, err := Db.ipfsClient.AddFile(Db.ctx, Db.keystorePath, Db.pinning)
-	if err != nil {
-		return "", err
-	}
-	return cid, nil
-}
-
-// keystoreSet will add a key value pair to the local keystore.
-func (Db *Db) keystoreSet(key, value string) error {
-	txn := Db.keystore.NewTransaction(true)
-	defer txn.Discard()
-	err := txn.Set([]byte(key), []byte(value))
-	if err != nil {
-		return err
-	}
-	return txn.Commit()
-}
-
-// keystoreGet will get a key value pair from the local keystore.
-func (Db *Db) keystoreGet(key string) (string, bool) {
-	txn := Db.keystore.NewTransaction(false)
-	defer txn.Discard()
-	item, err := txn.Get([]byte(key))
-	if err != nil {
-		if err != badger.ErrKeyNotFound {
-			panic(err)
-		}
-		return "", false
-	}
-	var returnedValue []byte
-	err = item.Value(func(val []byte) error {
-		returnedValue = val
-		return nil
-	})
-	if err != nil {
-		panic(err)
-	}
-	return string(returnedValue), true
-}
-
-// keystoreDelete will remove a key value pair from the local keystore.
-func (Db *Db) keystoreDelete(key string) error {
-	return Db.keystore.Update(func(txn *badger.Txn) error {
-		return txn.Delete([]byte(key))
-	})
 }

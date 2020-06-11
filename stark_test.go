@@ -2,7 +2,6 @@ package stark
 
 import (
 	"context"
-	"fmt"
 	"io/ioutil"
 	"os"
 	"strings"
@@ -21,14 +20,12 @@ var (
 	tmpFile  = "./README.copy.md"
 
 	// database tests:
+	testSnapshot    = ""
 	testProject     = "test_project"
 	testAltProject  = "snapshotted_project"
 	testKey         = "test entry"
 	testAlias       = "test record"
 	testDescription = "this is a test record"
-
-	// tmp locations for database and result writes
-	tmpDir = "tmp"
 )
 
 // IPFS tests:
@@ -171,7 +168,7 @@ func TestNewDB(t *testing.T) {
 	numEntries := 1
 
 	// init the starkDB
-	starkdb, teardown, err := OpenDB(SetProject(testProject), SetLocalStorageDir(tmpDir), SetBootstrappers(starkipfs.DefaultBootstrappers[:numBootstrappers]), SetKeyLimit(numEntries))
+	starkdb, teardown, err := OpenDB(SetProject(testProject), SetBootstrappers(starkipfs.DefaultBootstrappers[:numBootstrappers]), SetKeyLimit(numEntries))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -179,9 +176,6 @@ func TestNewDB(t *testing.T) {
 	// check the setup options propagated
 	if starkdb.project != strings.ReplaceAll(testProject, " ", "_") {
 		t.Fatal("starkDB's project does not match the provided one")
-	}
-	if starkdb.keystorePath != fmt.Sprintf("%s/%s", tmpDir, testProject) {
-		t.Fatalf("starkDB's keystore path does not look right: %v", starkdb.keystorePath)
 	}
 	if len(starkdb.bootstrappers) != numBootstrappers {
 		t.Fatalf("starkDB does not have expected number of bootstrappers listed: %d", len(starkdb.bootstrappers))
@@ -199,14 +193,9 @@ func TestNewDB(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// add record to stark
+	// add record to starkDB
 	if err := starkdb.Set(testKey, testRecord); err != nil {
 		t.Fatal(err)
-	}
-
-	// check it's in the local keyvalue store
-	if _, ok := starkdb.keystoreGet(testKey); !ok {
-		t.Fatal("Set method did not add a CID to the local keystore")
 	}
 
 	// get record back from starkDB
@@ -233,6 +222,13 @@ func TestNewDB(t *testing.T) {
 	}
 	t.Log(jsonDump)
 
+	// test snapshot
+	testSnapshot = starkdb.GetSnapshot()
+	if testSnapshot == "" {
+		t.Fatal("no snapshot produced by starkdb")
+	}
+	t.Log("snapshot: ", testSnapshot)
+
 	// test the db teardown
 	if err := teardown(); err != nil {
 		t.Fatal(err)
@@ -243,26 +239,27 @@ func TestNewDB(t *testing.T) {
 func TestReopenDB(t *testing.T) {
 
 	// test you can reopen the starkDB
-	starkdb, teardown, err := OpenDB(SetProject(testProject), SetLocalStorageDir(tmpDir), WithNoPinning())
+	starkdb, teardown, err := OpenDB(SetProject(testProject), SetSnapshotCID(testSnapshot), WithNoPinning())
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer teardown()
+	if starkdb.pinning {
+		t.Fatal("IPFS node was told not to pin but is set to do so")
+	}
+	if starkdb.GetSnapshot() != testSnapshot {
+		t.Fatal("starkDB did not build from existing snapshot")
+	}
 
 	// range over the starkDB and check we have an entry
-	found := false
-	for entry := range starkdb.RangeCIDs() {
-		if entry.Error != nil {
-			t.Fatal(err)
-		}
-		if entry.Key != testKey {
-			t.Fatalf("encountered unexpected key in starkDB: %v", entry.Key)
-		} else {
-			found = true
-		}
+	cids := starkdb.GetCIDs()
+	if len(cids) != 1 {
+		t.Fatal("starkDB did not collect record from existing snapshot")
 	}
-	if !found {
-		t.Fatal("RangeCIDs failed to return a starkDB entry")
+	for key := range cids {
+		if key != testKey {
+			t.Fatalf("encountered unexpected key in starkDB after GetCIDs(): %v", key)
+		}
 	}
 
 	// get record back from starkDB
@@ -272,13 +269,6 @@ func TestReopenDB(t *testing.T) {
 	}
 	t.Log(retrievedSample)
 
-	// try the explorer link
-	link, err := starkdb.GetExplorerLink(testKey)
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Logf("explorer link: %v", link)
-
 	// try deleting
 	if err := starkdb.Delete(testKey); err != nil {
 		t.Fatal(err)
@@ -286,17 +276,23 @@ func TestReopenDB(t *testing.T) {
 	if starkdb.currentNumEntries != 0 {
 		t.Fatal("db is not empty after delete operation on sole entry")
 	}
+
+	// take another snapshot now db is empty
+	testSnapshot = starkdb.GetSnapshot()
+	if testSnapshot != "" {
+		t.Fatal("snapshot produced by empty starkdb")
+	}
 }
 
 // TestMessages will check registering, announcing and listening.
 func TestMessages(t *testing.T) {
-	starkdb, teardown, err := OpenDB(SetProject(testProject), SetLocalStorageDir(tmpDir), WithNoPinning(), WithAnnouncing())
+	starkdb, teardown, err := OpenDB(SetProject(testProject), WithNoPinning(), WithAnnouncing())
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer teardown()
 	if !starkdb.announcing {
-		t.Fatal("db has no announcing flag set")
+		t.Fatal("starkdb told to announce but flag is unset")
 	}
 
 	// use a go routine to setup a Listener
@@ -326,7 +322,7 @@ func TestMessages(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// add record to starkDB and announcing it
+	// add record to starkDB and announce it
 	if err := starkdb.Set(testKey, testRecord); err != nil {
 		t.Fatal(err)
 	}
@@ -341,46 +337,16 @@ func TestMessages(t *testing.T) {
 	if !receivedRecord {
 		t.Fatal("did not receive record via PubSub")
 	}
-}
 
-// TestSnapshot will test the snapshot method and clone function.
-func TestSnapshot(t *testing.T) {
-
-	// open the test database
-	starkdb, teardown, err := OpenDB(SetProject(testProject), SetLocalStorageDir(tmpDir), WithNoPinning(), WithAnnouncing())
-	if err != nil {
-		t.Fatal(err)
+	if starkdb.currentNumEntries != 1 {
+		t.Fatal("starkdb does not contain newly added entry")
 	}
 
-	// snapshot it
-	snapshotCID, err := starkdb.Snapshot()
-	if err != nil {
-		teardown()
-		t.Fatal(err)
+	testSnapshot = starkdb.GetSnapshot()
+	if testSnapshot == "" {
+		t.Fatal("no snapshot produced by starkdb")
 	}
-
-	// close the database and remove it from local filesystem
-	if err := teardown(); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.RemoveAll(tmpDir); err != nil {
-		t.Fatal(err)
-	}
-
-	// open a fresh database with a snapshot
-	starkdb, teardown, err = OpenDB(SetProject(testAltProject), SetLocalStorageDir(tmpDir), WithSnapshot(snapshotCID))
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer teardown()
-
-	// check for the record from earlier has been recovered
-	retrievedSample, err := starkdb.Get(testKey)
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Log(retrievedSample)
-
+	t.Log("snapshot: ", testSnapshot)
 }
 
 // TestEncyption will test the Record encryption.
@@ -392,7 +358,7 @@ func TestEncyption(t *testing.T) {
 	}
 
 	// open the db with encryption
-	starkdb, teardown, err := OpenDB(SetProject(testProject), SetLocalStorageDir(tmpDir), WithEncryption())
+	starkdb, teardown, err := OpenDB(SetProject(testProject), WithEncryption())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -408,6 +374,11 @@ func TestEncyption(t *testing.T) {
 	if err := starkdb.Set(testKey, testRecord); err != nil {
 		t.Fatal(err)
 	}
+	testSnapshot = starkdb.GetSnapshot()
+	if testSnapshot == "" {
+		t.Fatal("no snapshot produced by starkdb")
+	}
+	t.Log("snapshot: ", testSnapshot)
 
 	// close the DB and open unencrypted version
 	if err := teardown(); err != nil {
@@ -415,7 +386,7 @@ func TestEncyption(t *testing.T) {
 	}
 
 	// check encrypted records can't be Getted by db with no encyption key
-	starkdb, teardown, err = OpenDB(SetProject(testProject), SetLocalStorageDir(tmpDir))
+	starkdb, teardown, err = OpenDB(SetProject(testProject), SetSnapshotCID(testSnapshot))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -428,7 +399,7 @@ func TestEncyption(t *testing.T) {
 	if err := teardown(); err != nil {
 		t.Fatal(err)
 	}
-	starkdb, teardown, err = OpenDB(SetProject(testProject), SetLocalStorageDir(tmpDir), WithEncryption())
+	starkdb, teardown, err = OpenDB(SetProject(testProject), SetSnapshotCID(testSnapshot), WithEncryption())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -452,12 +423,7 @@ func TestEncyption(t *testing.T) {
 	}
 }
 
-// TestCleanup will cleanup the test tmp files.
-func TestCleanup(t *testing.T) {
-	if err := os.RemoveAll(tmpDir); err != nil {
-		t.Fatal(err)
-	}
-}
+/*
 
 // Examples:
 
@@ -465,7 +431,7 @@ func TestCleanup(t *testing.T) {
 func ExampleOpenDB() {
 
 	// init the starkDB with functional options
-	starkdb, dbCloser, err := OpenDB(SetProject("my project"), SetLocalStorageDir("/tmp/starkdb"), WithAnnouncing())
+	starkdb, dbCloser, err := OpenDB(SetProject("my project"), SetSnapshotCID("/tmp/starkdb"), WithAnnouncing())
 	if err != nil {
 		panic(err)
 	}
@@ -499,7 +465,7 @@ func ExampleOpenDB() {
 func ExampleRangeCIDs() {
 
 	// init the starkDB with functional options
-	starkdb, dbCloser, err := OpenDB(SetProject("rangeCID example"), SetLocalStorageDir("/tmp/starkdb"), WithNoPinning())
+	starkdb, dbCloser, err := OpenDB(SetProject("rangeCID example"), SetSnapshotCID("/tmp/starkdb"), WithNoPinning())
 	if err != nil {
 		panic(err)
 	}
@@ -535,7 +501,7 @@ func ExampleRangeCIDs() {
 func ExampleListen() {
 
 	// init the starkDB with functional options
-	starkdb, dbCloser, err := OpenDB(SetProject("listen example"), SetLocalStorageDir("/tmp/starkdb"))
+	starkdb, dbCloser, err := OpenDB(SetProject("listen example"), SetSnapshotCID("/tmp/starkdb"))
 	if err != nil {
 		panic(err)
 	}
@@ -571,3 +537,5 @@ func ExampleListen() {
 	// add additional processing here
 
 }
+
+*/

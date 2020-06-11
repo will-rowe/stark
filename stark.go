@@ -24,7 +24,6 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/dgraph-io/badger"
 	starkipfs "github.com/will-rowe/stark/src/ipfs"
 )
 
@@ -32,9 +31,6 @@ const (
 
 	// DefaultBufferSize is the maximum number of records stored in channels.
 	DefaultBufferSize = 42
-
-	// DefaultLocalDbLocation is used if the user does not provide one.
-	DefaultLocalDbLocation = "/tmp/starkDB/"
 
 	// DefaultMaxEntries is the maximum number of keys a starkDB can hold.
 	DefaultMaxEntries = 10000
@@ -51,8 +47,17 @@ const (
 
 var (
 
+	// ErrAttemptedOverwrite indicates a starkDB key is already in use for a Record with non-matching UUID.
+	ErrAttemptedOverwrite = fmt.Errorf("starkDB key is already in use for a Record with non-matching UUID")
+
+	// ErrAttemptedUpdate indicates a Record with matching UUID is already in the IPFS and has a more recent update timestamp.
+	ErrAttemptedUpdate = fmt.Errorf("cannot update a Record in starkDB with an older version")
+
 	// ErrBootstrappers is issued when not enough bootstrappers are accessible.
 	ErrBootstrappers = fmt.Errorf("not enough bootstrappers found (minimum required: %d)", DefaultMinBootstrappers)
+
+	// ErrCipherPasswordMismatch is issued when a password does not decrypt a Record.
+	ErrCipherPasswordMismatch = fmt.Errorf("provided password cannot decrypt Record")
 
 	// ErrDbOption is issued for incorrect database initialisation options.
 	ErrDbOption = fmt.Errorf("starkDB option could not be set")
@@ -60,20 +65,8 @@ var (
 	// ErrEncrypted is issued when an encryption is attempted on an encrypted Record.
 	ErrEncrypted = fmt.Errorf("data is encrypted with passphrase")
 
-	// ErrCipherPasswordMismatch is issued when a password does not decrypt a Record.
-	ErrCipherPasswordMismatch = fmt.Errorf("provided password cannot decrypt Record")
-
-	// ErrAttemptedOverwrite indicates a starkDB key is already in use for a Record with non-matching UUID.
-	ErrAttemptedOverwrite = fmt.Errorf("starkDB key is already in use for a Record with non-matching UUID")
-
-	// ErrRecordHistory indicates two Records with the same UUID a gap in their history.
-	ErrRecordHistory = fmt.Errorf("both Records share UUID but have a gap in their history")
-
-	// ErrAttemptedUpdate indicates a Record with matching UUID is already in the IPFS and has a more recent update timestamp.
-	ErrAttemptedUpdate = fmt.Errorf("cannot update a Record in starkDB with an older version")
-
-	// ErrKeyNotFound is issued during a Get request when the key is not present in the local keystore.
-	ErrKeyNotFound = fmt.Errorf("key not found in the database")
+	// ErrInvalidSnapshot indicates a snapshotted IPFS DAG node can't be accessed.
+	ErrInvalidSnapshot = fmt.Errorf("cannot access the database snapshot")
 
 	// ErrLinkExists indicates a Record is already linked to the provided UUID.
 	ErrLinkExists = fmt.Errorf("Record already linked to the provided UUID")
@@ -86,6 +79,11 @@ var (
 
 	// ErrNoCID indicates no CID was provided.
 	ErrNoCID = fmt.Errorf("no CID was provided")
+
+	// ErrNotFound indicates a key was not found in the starkDB.
+	ErrNotFound = func(key string) error {
+		return fmt.Errorf("key not found: %v", key)
+	}
 
 	// ErrNodeFormat is issued when a CID points to a node with an unsupported format.
 	ErrNodeFormat = fmt.Errorf("database entry points to a non-CBOR node")
@@ -107,13 +105,21 @@ var (
 
 	// ErrNoSub indicates the IPFS node is not registered for PubSub.
 	ErrNoSub = fmt.Errorf("IPFS node has no topic registered for PubSub")
+
+	// ErrRecordHistory indicates two Records with the same UUID a gap in their history.
+	ErrRecordHistory = fmt.Errorf("both Records share UUID but have a gap in their history")
+
+	// ErrSnapshotUpdate is issued when a link can't be made between the new Record and existing project base node.
+	ErrSnapshotUpdate = fmt.Errorf("could not update database snapshot")
 )
 
 // Db is the starkDB database.
 type Db struct {
-	lock      sync.Mutex // protects access to the bound IPFS node and badger db
-	ctx       context.Context
-	ctxCancel context.CancelFunc
+	lock       sync.Mutex // protects access to the bound IPFS node
+	ctx        context.Context
+	ctxCancel  context.CancelFunc
+	ipfsClient *starkipfs.Client // wraps the IPFS core API, node and PubSub channels
+	cidLookup  map[string]string // quick access to Record CIDs using user-supplied keys
 
 	// user-defined settings
 	project       string   // the project which the database instance is managing
@@ -128,12 +134,9 @@ type Db struct {
 	// not yet implemented:
 	allowNetwork bool // controls the IPFS node's network connection // TODO: not yet implemented (thinking of local dbs)
 
-	// local storage
-	keystore          *badger.DB // local keystore to relate record UUIDs to IPFS CIDs
-	currentNumEntries int        // the number of keys in the keystore (checked on db open and then incremented/decremented during Set/Delete ops)
+	// db stats
+	currentNumEntries int // the number of keys in the keystore (checked on db open and then incremented/decremented during Set/Delete ops)
 
-	// IPFS
-	ipfsClient *starkipfs.Client // wraps the IPFS core API, node and PubSub channels
 }
 
 // DbOption is a wrapper struct used to pass functional
@@ -143,15 +146,3 @@ type DbOption func(Db *Db) error
 // RecordOption is a wrapper struct used to pass functional
 // options to the Record constructor.
 type RecordOption func(Record *Record) error
-
-// KeyCIDpair wraps the starkDB Key, corresponding
-// Record CID and any access error for each entry
-// in the starkDB.
-//
-// It is used by the RangeCIDs method to return a
-// copy of each entry in the starkDB.
-type KeyCIDpair struct {
-	Key   string
-	CID   string
-	Error error
-}

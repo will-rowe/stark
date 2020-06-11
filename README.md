@@ -14,31 +14,36 @@
 
 **stark** is an IPFS-backed database for recording and distributing sequencing data. It is both a library and a Command Line Utility for running and interacting with **stark databases**. Features include:
 
-- snapshot and sync entire databases over the IPFS
+- snapshot, sync and share entire databases over the IPFS
 - use PubSub messaging to share and collect data records as they are created
 - track record history and rollback revisions (rollback feature WIP)
 - attach and sync files to records (WIP)
 - encrypt record fields
+- submit databases to [pinata](https://pinata.cloud/) pinning service for easy backup and distribution
 
 ### The database
 
-- **stark databases** track, update and distribute sequence `records`
-- `records` are kept as DAG nodes in the [IPFS](https://ipfs.io/), which are pointed to by `content identifiers (CIDs)`
-- the `CIDs` are tracked locally using `keys` in a persistent key-value store ([badgerdb](https://github.com/dgraph-io/badger))
-- each database instance is linked to a `project`
-- `projects` group the whole database, individual `records` and other metadata for sharing
-- databases are augmented, versioned and shared using the `project` identifier.
+- **stark databases** track, update and share sequence `records`
+- the database groups `records` by `projects`, databases can contain `records` from other `projects`
+- `projects` and `records` are DAG nodes in the [IPFS](https://ipfs.io/)
+- DAG `links` are created between `records` and the `projects` that use them
+- `records` and `projects` are pointed to by `content identifiers (CIDs)`
+- the `CIDs` change when the content they point to is altered, so databases track them locally using `keys`
+- databases are re-opened and shared using the `project` `CID` (termed a `snapshot`)
 
 ### Records
 
 - `records` are a data structure used to represent a Nanopore sequencing run (but can be hijacked and extended to be more generic or to represent Samples and Libraries)
 - `records` are defined in [protobuf](https://developers.google.com/protocol-buffers) format (which is compiled with Go bindings using [this makefile](./schema/Makefile))
+- currently, `records` are serialised to JSON for IPFS transactions
 
 ### Requirements
 
 Both the Go package and the Command Line Utility require `go-ipfs`. See download and install instructions [here](https://docs.ipfs.io/guides/guides/install/).
 
 ## The Go Package
+
+View the [Go Documentation](https://pkg.go.dev/github.com/will-rowe/stark) site for the **stark** detailed docs.
 
 ### Install
 
@@ -61,7 +66,7 @@ import (
 func main() {
 
 	// init a starkDB
-	db, dbCloser, err := stark.OpenDB(stark.SetProject("my project"), stark.SetLocalStorageDir("/tmp/starkdb"))
+	db, dbCloser, err := stark.OpenDB(stark.SetProject("my project"))
 	if err != nil {
 		panic(err)
 	}
@@ -97,28 +102,6 @@ func main() {
 }
 ```
 
-### Documentation
-
-View the [Go Documentation](https://pkg.go.dev/github.com/will-rowe/stark) site for the **stark** package documentation. The basic API is:
-
-```
-- NewRecord
-  - creates a new record to represent a sequencing data object
-- OpenDB
-  - open a starkDB
-- Set
-  - add a record to the open starDB
-- Get
-  - get a record from the open starkDB
-- Snapshot
-  - save the current starkDB to the IPFS
-  - the returned CID can be passed back to the OpenDB function
-- Listen
-  - listens out for records being announced by other databases users
-  - if they match your project name, the records are retrieved from the IPFS
-  - you can then add them to your database instance
-```
-
 ## The Command Line Utility
 
 > this is a work in progress....
@@ -132,10 +115,3 @@ View the [Go Documentation](https://pkg.go.dev/github.com/will-rowe/stark) site 
 - even though schema is in protobuf, most of the time it's marshaling to JSON to pass stuff around
 - Record methods are not threadsafe - the database passes around copies of Records so this isn't much of an issue atm. The idea is that users of the library will end up turning Record data into something more usable and won't operate on them after initial Set/Gets
 - Encryption is a WIP, currently only a Record's UUID will be encrypted as a proof of functionality. Encrypted Records are decrypted on retrieval, but this will fail if the database instance requesting them doesn't have the correct password.
-
-## Notes to future me
-
-- have separated out packages now
-- I want to unexport ipfs field of Client - this means making more methods
-- ideally, take all the IO from dbio.go and put that into Client methods
-- then I can streamline the remaining dbXXX.go files
