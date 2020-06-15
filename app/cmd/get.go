@@ -53,7 +53,7 @@ var getCmd = &cobra.Command{
 }
 
 func init() {
-	recEncoding = getCmd.Flags().StringP("encoding", "e", "json", "Encoding to use when printing the retrieved Record (json or proto)")
+	recEncoding = getCmd.Flags().StringP("encoding", "E", "json", "Encoding to use when printing the retrieved Record (json or proto)")
 	hReadable = getCmd.Flags().BoolP("humanReadable", "H", false, "If true, output will be human readable")
 	rootCmd.AddCommand(getCmd)
 }

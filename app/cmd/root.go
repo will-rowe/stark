@@ -30,14 +30,11 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
-	starkdb "github.com/will-rowe/stark"
 	"github.com/will-rowe/stark/app/config"
 	"github.com/will-rowe/stark/src/helpers"
 )
 
 var cfgFile string
-var announce bool
-var encrypt bool
 
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
@@ -60,8 +57,6 @@ func init() {
 
 	// persistent flags
 	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", fmt.Sprintf("Config file (default is %s)", config.DefaultConfigPath))
-	rootCmd.PersistentFlags().BoolVar(&announce, "announce", false, "Announce the Record to the PubSub network when it is added to the Project database")
-	rootCmd.PersistentFlags().BoolVar(&encrypt, "encrypt", false, fmt.Sprintf("Encrypt record fields using the password stored in the %v env variable", starkdb.DefaultStarkEnvVariable))
 
 	// set up logrus
 	customFormatter := new(logrus.TextFormatter)

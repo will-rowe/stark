@@ -22,10 +22,13 @@ THE SOFTWARE.
 package cmd
 
 import (
+	"context"
+	"fmt"
 	"net"
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
@@ -37,7 +40,9 @@ import (
 )
 
 var (
-	listen *bool
+	announce *bool
+	encrypt  *bool
+	listen   *bool
 )
 
 // openCmd represents the open command
@@ -57,6 +62,8 @@ to quickly create a Cobra application.`,
 }
 
 func init() {
+	announce = openCmd.Flags().BoolP("announce", "a", false, "Announce the Record to the PubSub network when it is added to the Project database")
+	encrypt = openCmd.Flags().BoolP("encrypt", "e", false, fmt.Sprintf("Encrypt record fields using the password stored in the %v env variable", starkdb.DefaultStarkEnvVariable))
 	listen = openCmd.Flags().BoolP("listen", "l", false, "If true, database will listen for records being added on the network and make a copy in the current database")
 	rootCmd.AddCommand(openCmd)
 }
@@ -84,11 +91,11 @@ func runOpen(projectName string) {
 	if len(projectSnapshot) != 0 {
 		dbOpts = append(dbOpts, starkdb.SetSnapshotCID(projectSnapshot))
 	}
-	if announce {
+	if *announce {
 		log.Info("\tusing announce")
 		dbOpts = append(dbOpts, starkdb.WithAnnouncing())
 	}
-	if encrypt {
+	if *encrypt {
 		log.Info("\tusing encryption")
 		dbOpts = append(dbOpts, starkdb.WithEncryption())
 	}
@@ -100,8 +107,35 @@ func runOpen(projectName string) {
 	}
 	log.Infof("\tcurrent number of entries in database: %d", db.GetNumEntries())
 
-	// set up the gRPC server
+	// set up some control channels
 	errChan := make(chan error)
+	terminator := make(chan struct{})
+
+	// start the listener if requested
+	if *listen {
+		log.Info("starting PubSub listener...")
+		recs, errs, err := db.Listen(terminator)
+		if err != nil {
+			log.Fatal(err)
+		}
+		go func() {
+			ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+			defer cancel()
+			select {
+			case rec := <-recs:
+				log.Info("found record via PubSub, adding now...")
+				_, err := db.Set(ctx, rec)
+				if err != nil {
+					errChan <- err
+				}
+				log.Infof("\tadded: %v", rec.GetUuid())
+			case err := <-errs:
+				errChan <- err
+			}
+		}()
+	}
+
+	// set up the gRPC server
 	address := viper.GetString("Address")
 	log.Info("starting gRPC server...")
 	log.Infof("\taddress: %s", address)
@@ -116,6 +150,9 @@ func runOpen(projectName string) {
 	defer func() {
 		log.Info("shutting down...")
 		log.Infof("\tcurrent number of entries in database: %d", db.GetNumEntries())
+
+		// close the listener
+		close(terminator)
 
 		// update the snapshot
 		newSnapshot := db.GetSnapshot()
@@ -143,7 +180,7 @@ func runOpen(projectName string) {
 		log.Info("finished.")
 	}()
 
-	//
+	// start serving
 	go func() {
 		if err := grpcServer.Serve(lis); err != nil {
 			errChan <- err
