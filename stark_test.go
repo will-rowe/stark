@@ -24,7 +24,6 @@ var (
 	testProject     = "test_project"
 	testAltProject  = "snapshotted_project"
 	testKey         = "test entry"
-	testAlias       = "test record"
 	testDescription = "this is a test record"
 )
 
@@ -130,7 +129,7 @@ func TestIpfsPubSub(t *testing.T) {
 			case <-stopMsgs:
 				return
 			default:
-				time.Sleep(time.Second * 2)
+				time.Sleep(time.Second * 1)
 				if err := client.SendMessage(ctx, tstTopic, tstMsg); err != nil {
 					client.GetPSEchan() <- err
 				}
@@ -190,18 +189,27 @@ func TestNewDB(t *testing.T) {
 	}
 
 	// create a record
-	testRecord, err := NewRecord(SetAlias(testAlias))
+	testRecord, err := NewRecord(SetAlias(testKey))
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	// add record to starkDB
-	if err := starkdb.Set(testKey, testRecord); err != nil {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	rec, err := starkdb.Set(ctx, testRecord)
+	if err != nil {
 		t.Fatal(err)
+	}
+	if rec == nil {
+		t.Fatal("did not receive record from Set method")
+	}
+	if rec.GetAlias() != testKey {
+		t.Fatal("received record from Set method does not contain correct fields")
 	}
 
 	// get record back from starkDB
-	retrievedSample, err := starkdb.Get(testKey)
+	retrievedSample, err := starkdb.Get(ctx, &Key{Id: testKey})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -211,12 +219,12 @@ func TestNewDB(t *testing.T) {
 	}
 
 	// try adding duplicate record
-	if err := starkdb.Set(testKey, testRecord); err == nil {
+	if _, err := starkdb.Set(ctx, testRecord); err == nil {
 		t.Fatal("duplicate sample was added")
 	}
 
 	// test JSON dump of metadata
-	jsonDump, err := starkdb.DumpMetadata()
+	jsonDump, err := starkdb.Dump(ctx, &Key{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -240,6 +248,8 @@ func TestNewDB(t *testing.T) {
 
 // TestReopenDB will check database re-opening, ranging and deleting.
 func TestReopenDB(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
 	// test you can reopen the starkDB
 	starkdb, teardown, err := OpenDB(SetProject(testProject), SetSnapshotCID(testSnapshot), WithNoPinning())
@@ -266,7 +276,7 @@ func TestReopenDB(t *testing.T) {
 	}
 
 	// get record back from starkDB
-	retrievedSample, err := starkdb.Get(testKey)
+	retrievedSample, err := starkdb.Get(ctx, &Key{Id: testKey})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -289,6 +299,9 @@ func TestReopenDB(t *testing.T) {
 
 // TestMessages will check registering, announcing and listening.
 func TestMessages(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
 	starkdb, teardown, err := OpenDB(SetProject(testProject), WithNoPinning(), WithAnnouncing())
 	if err != nil {
 		t.Fatal(err)
@@ -320,13 +333,13 @@ func TestMessages(t *testing.T) {
 	}()
 
 	// create a record
-	testRecord, err := NewRecord(SetAlias(testAlias))
+	testRecord, err := NewRecord(SetAlias(testKey))
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	// add record to starkDB and announce it
-	if err := starkdb.Set(testKey, testRecord); err != nil {
+	if _, err := starkdb.Set(ctx, testRecord); err != nil {
 		t.Fatal(err)
 	}
 
@@ -354,6 +367,8 @@ func TestMessages(t *testing.T) {
 
 // TestEncyption will test the Record encryption.
 func TestEncyption(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
 	// set a dummy encyption key
 	if err := os.Setenv("STARK_DB_PASSWORD", "dummy password"); err != nil {
@@ -370,11 +385,11 @@ func TestEncyption(t *testing.T) {
 	}
 
 	// check a Record Set with encryption
-	testRecord, err := NewRecord(SetAlias(testAlias))
+	testRecord, err := NewRecord(SetAlias(testKey))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := starkdb.Set(testKey, testRecord); err != nil {
+	if _, err := starkdb.Set(ctx, testRecord); err != nil {
 		t.Fatal(err)
 	}
 	testSnapshot = starkdb.GetSnapshot()
@@ -393,7 +408,7 @@ func TestEncyption(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	retrievedRec, err := starkdb.Get(testKey)
+	retrievedRec, err := starkdb.Get(ctx, &Key{Id: testKey})
 	if err == nil {
 		t.Fatal("retrieved and decypted an encrypted record via a db with no cipher key")
 	}
@@ -407,7 +422,7 @@ func TestEncyption(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer teardown()
-	retrievedRec, err = starkdb.Get(testKey)
+	retrievedRec, err = starkdb.Get(ctx, &Key{Id: testKey})
 	if err != nil {
 		t.Fatal(err)
 	}

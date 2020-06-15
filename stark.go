@@ -71,6 +71,9 @@ var (
 	// ErrNoCID indicates no CID was provided.
 	ErrNoCID = fmt.Errorf("no CID was provided")
 
+	// ErrNoKey indicates no record key was provided.
+	ErrNoKey = fmt.Errorf("no key could be found, make sure Record Alias is set")
+
 	// ErrNotFound indicates a key was not found in the starkDB.
 	ErrNotFound = func(key string) error {
 		return fmt.Errorf("key not found: %v", key)

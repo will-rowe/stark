@@ -1,0 +1,90 @@
+//  Schema for STARK database
+//  -------------------------
+syntax = "proto3";
+
+package stark;
+option go_package = ".;stark";
+
+import "google/protobuf/timestamp.proto";
+
+/*
+    StarkDb.
+
+*/
+service StarkDb {
+    rpc Get(Key) returns (Record) {}
+    rpc Set(Record) returns (Record) {}
+    rpc Dump(Key) returns (DbMeta) {}
+}
+
+/*
+    DbMeta.
+
+    This message is used to encode runtime
+    information for a StarkDb.
+*/
+message DbMeta {
+    string Project = 1;             // project name for the current database
+    string Snapshot = 2;            // CID for the current database state
+    string NodeAddress = 3;         // the IPFS node address for the database
+
+	bool Pinning = 5;               // if true, database is pinning entries
+	bool Announcing = 6;            // if true, database is announcing entries on PubSub
+    int32 CurrEntries = 7;          // current number of entries in the database
+    map<string, string> Pairs = 8;  // pairs of Keys -> Record CIDs held in the database
+}
+
+/*
+    Key.
+
+    This message is used to send queries from
+    gRPC clients to a stark database that implements
+    the StarkDb interface.
+*/
+message Key {
+    string id = 1;
+}
+
+/*
+    Record.
+    
+    This message is used to describe a sequencing metadata.
+    Record's will be able to encode runs, samples and libraries.
+    WIP.
+*/
+message Record {
+
+    // reserved:
+    string uuid = 1;                             // universally unique id for the record
+    string previousCID = 2;                      // the last known CID this record was pulled from (set during a Get operation)
+    repeated RecordComment history = 3;          // describes the history of the record - can be used to get timestamps for creation and last updated
+    bool encrypted = 4;                          // set true to indicate if fields have been encrypted 
+    Status status = 5;                           // describes if untagged/tagged/etc.
+
+    // user updateable:    
+    string alias = 6;                            // the record name / human readable id (used as the default RecordKey ID)
+    string description = 7;                      // a short description of the record  
+
+    string localSequencerOutputDir = 9;          // where the sequencer is outputing data for this record
+    map<string, string> linkedSamples = 10;      // all samples linked to this record (map relates sample UUIDs to a metadata location (e.g. a CID))
+    map<string, string> linkedLibraries = 11;    // all libraries linked to this record (map relates library UUIDs to a metadata location (e.g. a CID))
+    map<string, int32> barcodes = 12;            // all barcodes used by this record (map links library UUID to barcode for that library)
+}
+
+/*
+    RecordComment is used to describe message history.
+*/
+message RecordComment {
+    google.protobuf.Timestamp timestamp = 1;        // timestamp for change
+    string text = 2;                                // description of the change
+    string previousCID = 3;                         // last known CID for a Record (used to rollback the Record and undo the newly commented change)
+}
+
+/*
+    Status is currently un-used.
+*/
+enum Status {
+    UN_INITIALIZED = 0;
+    untagged = 1;
+    tagged = 2;
+}

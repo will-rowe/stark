@@ -22,94 +22,78 @@ THE SOFTWARE.
 package cmd
 
 import (
+	"context"
 	"encoding/json"
-	"io/ioutil"
-	"os"
+	"fmt"
+	"time"
 
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
-	starkdb "github.com/will-rowe/stark"
+	"github.com/will-rowe/stark"
 	"github.com/will-rowe/stark/app/config"
+	"google.golang.org/grpc"
+	"google.golang.org/protobuf/proto"
 )
 
 var (
-	outFile *string
+	recEncoding *string
+	hReadable   *bool
 )
 
 // getCmd represents the get command
 var getCmd = &cobra.Command{
-	Use:   "get <project name> <key>",
-	Short: "Get a record from a database",
-	Long:  `Get a record from a database.`,
-	Args:  cobra.ExactArgs(2),
+	Use:   "get",
+	Short: "Get a record from an open database",
+	Long:  `Get a record from an open database.`,
+	Args:  cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
-		runGet(args[0], args[1])
+		runGet(args[0])
 	},
 }
 
 func init() {
+	recEncoding = getCmd.Flags().StringP("encoding", "e", "json", "Encoding to use when printing the retrieved Record (json or proto)")
+	hReadable = getCmd.Flags().BoolP("humanReadable", "H", false, "If true, output will be human readable")
 	rootCmd.AddCommand(getCmd)
-	outFile = getCmd.Flags().StringP("outFile", "o", "record.json", "Outfile name for retrieved record")
 }
 
-// runGet is the main block for the add subcommand
-func runGet(projectName, key string) {
-	config.StartLog("get")
+func runGet(key string) {
 
-	// init the database
-	log.Info("fetching database...")
-	projs := viper.GetStringMapString("Databases")
-	projectSnapshot, ok := projs[projectName]
-	if !ok {
-		log.Fatalf("no project found for: %v", projectName)
-		os.Exit(1)
-	}
-	log.Info("\tproject name: ", projectName)
-
-	// setup the db opts
-	dbOpts := []starkdb.DbOption{
-		starkdb.SetProject(projectName),
-	}
-	if len(projectSnapshot) != 0 {
-		dbOpts = append(dbOpts, starkdb.SetSnapshotCID(projectSnapshot))
-	}
-	if announce {
-		log.Info("\tusing announce")
-		dbOpts = append(dbOpts, starkdb.WithAnnouncing())
-	}
-	if encrypt {
-		log.Info("\tusing encryption")
-		dbOpts = append(dbOpts, starkdb.WithEncryption())
+	// check the options
+	if (*recEncoding != "json") && (*recEncoding != "proto") {
+		log.Fatalf("unsupported encoding requested: %s", *recEncoding)
 	}
 
-	// open the db
-	db, dbCloser, err := starkdb.OpenDB(dbOpts...)
+	// get context
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+
+	// connect to the server
+	conn, err := grpc.DialContext(ctx, viper.GetString("Address"), grpc.WithInsecure(), grpc.WithBlock())
+	if err != nil {
+		log.Fatalf("could not connect to a database: %v", err)
+	}
+	defer conn.Close()
+	c := stark.NewStarkDbClient(conn)
+
+	// make a Get request
+	record, err := c.Get(ctx, &stark.Key{Id: key})
+	config.CheckResponseErr(err)
+
+	// print the returned Record
+	var data []byte
+	if *recEncoding == "proto" {
+		data, err = proto.Marshal(record)
+	} else {
+		data, err = json.MarshalIndent(record, "", "\t")
+	}
 	if err != nil {
 		log.Fatal(err)
 	}
-
-	// defer close of the db
-	defer func() {
-		if err := dbCloser(); err != nil {
-			log.Fatal(err)
-		}
-	}()
-
-	// get the Record
-	log.Info("getting the record...")
-	record, err := db.Get(key)
-	if err != nil {
-		log.Fatal(err)
+	if *hReadable {
+		fmt.Println(string(data))
+	} else {
+		fmt.Println(data)
 	}
-	data, err := json.MarshalIndent(record, "", " ")
-	if err != nil {
-		log.Fatal(err)
-	}
-	if err := ioutil.WriteFile(*outFile, data, 0644); err != nil {
-		log.Fatal(err)
-	}
-	log.Infof("\trecord key: %s", key)
-	log.Infof("\twritten to file: %s", *outFile)
-	log.Info("done.")
 }

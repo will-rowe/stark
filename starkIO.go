@@ -2,104 +2,166 @@ package stark
 
 import (
 	"bytes"
-	"encoding/json"
 	"fmt"
+	"io/ioutil"
 
 	"github.com/gogo/protobuf/jsonpb"
 	cbor "github.com/ipfs/go-ipld-cbor"
 	"github.com/pkg/errors"
-	starkhelpers "github.com/will-rowe/stark/src/helpers"
+	starkpinata "github.com/will-rowe/stark/src/pinata"
 )
 
-// Set will add a Record to the starkDB, linking it with the provided key.
-// Set adds a comment to the Record's history before adding it to the
-// IPFS.
-func (starkdb *Db) Set(key string, record *Record) error {
+// GetSnapshot returns the current database snapshot
+// CID, which can be used to rebuild the current
+// database instance.
+//
+// Note: if the database has no entries, the
+// returned snapshot will be a nil string.
+func (starkdb *Db) GetSnapshot() string {
 	starkdb.Lock()
 	defer starkdb.Unlock()
-
-	// check the local keystore to see if this key has been used before
-	if existingCID, exists := starkdb.cidLookup[key]; exists {
-
-		// retrieve the record for this key
-		existingRecord, err := starkdb.getRecordFromCID(existingCID)
-		if err != nil {
-			return err
-		}
-
-		// check UUIDs
-		if existingRecord.GetUuid() != record.GetUuid() {
-			return ErrAttemptedOverwrite
-		}
-
-		// if the existingCID in the local keystore does not match the previousCID of the incoming Record it is an attempted overwrite
-		if existingCID != record.GetPreviousCID() {
-			return ErrRecordHistory
-		}
-
-		// otherwise this is an attempted update, check that the incoming Record is more recent
-		if !starkhelpers.CheckTimeStamp(existingRecord.GetLastUpdatedTimestamp(), record.GetLastUpdatedTimestamp()) {
-			return ErrAttemptedUpdate
-		}
-		record.AddComment("Set: updating record.")
-
+	if starkdb.currentNumEntries == 0 {
+		return ""
 	}
-	record.AddComment("Set: adding record to IPFS.")
-
-	// if encrypting requested and Record isn't already, do it now
-	if len(starkdb.cipherKey) != 0 && !record.GetEncrypted() {
-		if err := record.Encrypt(starkdb.cipherKey); err != nil {
-			return err
-		}
-	}
-
-	// marshal Record data to JSON
-	jsonData, err := json.Marshal(record)
-	if err != nil {
-		return err
-	}
-
-	// create DAG node in IPFS for Record data
-	cid, err := starkdb.ipfsClient.DagPut(starkdb.ctx, jsonData, starkdb.pinning)
-	if err != nil {
-		return err
-	}
-
-	// link the record CID to the project directory and take a snapshot
-	snapshotUpdate, err := starkdb.ipfsClient.AddLink(starkdb.ctx, starkdb.snapshotCID, cid, key)
-	if err != nil {
-		return errors.Wrap(err, ErrSnapshotUpdate.Error())
-	}
-	starkdb.snapshotCID = snapshotUpdate
-
-	// if announcing, do it now
-	if starkdb.announcing {
-
-		// TODO: send proto data instead of CID
-		if err := starkdb.publishAnnouncement([]byte(cid)); err != nil {
-			return err
-		}
-	}
-
-	// add the returned CID to the local keystore
-	starkdb.cidLookup[key] = cid
-	starkdb.currentNumEntries++
-	return nil
+	return starkdb.snapshotCID
 }
 
-// Get will retrieve a Record from the starkDB using the provided key.
-func (starkdb *Db) Get(key string) (*Record, error) {
+// GetNumEntries returns the number of entries
+// in the current database instance.
+func (starkdb *Db) GetNumEntries() int {
 	starkdb.Lock()
 	defer starkdb.Unlock()
+	return starkdb.currentNumEntries
+}
 
-	// check the local keystore for the provided key
-	cid, ok := starkdb.cidLookup[key]
-	if !ok {
-		return nil, ErrNotFound(key)
+// GetCIDs will return a map of keys to CIDs for
+// all Records currently held in the database.
+func (starkdb *Db) GetCIDs() map[string]string {
+	starkdb.Lock()
+	defer starkdb.Unlock()
+	return starkdb.cidLookup
+}
+
+// GetNodeIdentity returns the PeerID of the underlying IPFS
+// node for the starkDB instance.
+func (starkdb *Db) GetNodeIdentity() (string, error) {
+	if !starkdb.isOnline() {
+		return "", ErrNodeOffline
+	}
+	id := starkdb.ipfsClient.PrintNodeID()
+	if len(id) == 0 {
+		return "", ErrNoPeerID
+	}
+	return id, nil
+}
+
+// GetNodeAddr returns the public address of the
+// underlying IPFS node for the starkDB
+// instance.
+func (starkdb *Db) GetNodeAddr() (string, error) {
+	nodeID, err := starkdb.GetNodeIdentity()
+	if err != nil {
+		return "", err
+	}
+	add, err := starkdb.ipfsClient.GetPublicIPv4Addr()
+	if err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("/ip4/%s/tcp/4001/p2p/%s", add, nodeID), nil
+}
+
+// PinataPublish will issue an API call to the pinata
+// pinByHash endpoint and pin the database.
+func (starkdb *Db) PinataPublish(apiKey, apiSecret string) (string, error) {
+	hostAddress, err := starkdb.GetNodeAddr()
+	if err != nil {
+		return "", err
+	}
+	pinataClient, err := starkpinata.NewClient(apiKey, apiSecret, hostAddress)
+	if err != nil {
+		return "", err
+	}
+	meta := starkpinata.NewMetadata(starkdb.project)
+	resp, err := pinataClient.PinByHashWithMetadata(starkdb.snapshotCID, meta)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return "", err
+	}
+	return string(body), nil
+}
+
+// Listen will start a subscription to the IPFS PubSub network
+// for messages matching the current database's project. It
+// tries pulling Records from the IPFS via the announced
+// CIDs, then returns them via a channel to the caller.
+//
+// It returns the Record channel, an Error channel which reports
+// errors during message processing and Record retrieval, as well
+// as any error during the PubSub setup.
+func (starkdb *Db) Listen(terminator chan struct{}) (chan *Record, chan error, error) {
+	if !starkdb.isOnline() {
+		return nil, nil, ErrNodeOffline
 	}
 
-	// use the helper method to retrieve the Record
-	return starkdb.getRecordFromCID(cid)
+	// subscribe the node to the starkDB project
+	if err := starkdb.ipfsClient.Subscribe(starkdb.ctx, starkdb.project); err != nil {
+		return nil, nil, err
+	}
+
+	// cidTracker skips listener over duplicate CIDs
+	cidTracker := make(map[string]struct{})
+
+	// create channels used to send Records and errors back to the caller
+	recChan := make(chan *Record, DefaultBufferSize)
+	errChan := make(chan error)
+
+	// process the incoming messages
+	go func() {
+		for {
+			select {
+			case msg := <-starkdb.ipfsClient.GetPSMchan():
+
+				// TODO: check sender peerID
+				//msg.From()
+
+				// get the CID
+				cid := string(msg.Data())
+				if _, ok := cidTracker[cid]; ok {
+					continue
+				}
+				cidTracker[cid] = struct{}{}
+
+				// collect the Record from IPFS
+				collectedRecord, err := starkdb.getRecordFromCID(cid)
+				if err != nil {
+					errChan <- err
+				} else {
+
+					// add a comment to say this Record was from PubSub
+					collectedRecord.AddComment(fmt.Sprintf("collected from %s via pubsub.", msg.From()))
+
+					// send the record on to the caller
+					recChan <- collectedRecord
+				}
+
+			case err := <-starkdb.ipfsClient.GetPSEchan():
+				errChan <- err
+
+			case <-terminator:
+				if err := starkdb.ipfsClient.Unsubscribe(); err != nil {
+					errChan <- err
+				}
+				close(recChan)
+				close(errChan)
+				return
+			}
+		}
+	}()
+	return recChan, errChan, nil
 }
 
 // Delete will delete an entry from starkdb. This involves
@@ -180,4 +242,23 @@ func (starkdb *Db) getRecordFromCID(cid string) (*Record, error) {
 	// add the pulled CID to this record
 	record.PreviousCID = cid
 	return record, nil
+}
+
+// publishAnnouncement will send a PubSub message on the topic
+// of the database project.
+func (starkdb *Db) publishAnnouncement(message []byte) error {
+	if !starkdb.isOnline() {
+		return ErrNodeOffline
+	}
+	if len(starkdb.project) == 0 {
+		return ErrNoProject
+	}
+	return starkdb.ipfsClient.SendMessage(starkdb.ctx, starkdb.project, message)
+}
+
+// isOnline returns true if the starkDB is in online mode
+// and the IPFS daemon is reachable.
+// TODO: this needs some more work.
+func (starkdb *Db) isOnline() bool {
+	return starkdb.ipfsClient.Online()
 }

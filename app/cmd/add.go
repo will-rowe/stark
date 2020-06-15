@@ -23,110 +23,70 @@ THE SOFTWARE.
 package cmd
 
 import (
-	"os"
+	"context"
+	"fmt"
+	"time"
 
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+	"github.com/will-rowe/stark"
 	starkdb "github.com/will-rowe/stark"
 	"github.com/will-rowe/stark/app/config"
+	"google.golang.org/grpc"
 )
 
 var (
-	recordAlias       *string
+	printRecord       *bool
 	recordDescription *string
 )
 
 // addCmd represents the add command
 var addCmd = &cobra.Command{
-	Use:   "add <project name> <key>",
-	Short: "Add a record to a database",
-	Long: `Add a record to a database.
+	Use:   "add <key>",
+	Short: "Add a record to an open database",
+	Long: `Add a record to an open database.
 	
 	This command only offers basic Record fields at the moment.
 	It may also be subject to change depending on best to add
 	Records as the Record structure evolves.`,
-	Args: cobra.ExactArgs(2),
+	Args: cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
-		runAdd(args[0], args[1])
+		runAdd(args[0])
 	},
 }
 
 func init() {
-	rootCmd.AddCommand(addCmd)
-	recordAlias = addCmd.Flags().String("alias", "", "Alias to give the new record")
 	recordDescription = addCmd.Flags().String("description", "", "Description to give new record (enclose in quotes)")
+	printRecord = addCmd.Flags().BoolP("printRecord", "P", false, "Print the record once it has been added to the database")
+	rootCmd.AddCommand(addCmd)
 }
 
 // runAdd is the main block for the add subcommand
-func runAdd(projectName, key string) {
-	config.StartLog("add")
+func runAdd(key string) {
 
-	// init the database
-	log.Info("fetching database...")
-	projs := viper.GetStringMapString("Databases")
-	projectSnapshot, ok := projs[projectName]
-	if !ok {
-		log.Fatalf("no project found for: %v", projectName)
-		os.Exit(1)
-	}
-	log.Info("\tproject name: ", projectName)
+	// get context
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
 
-	// setup the db opts
-	dbOpts := []starkdb.DbOption{
-		starkdb.SetProject(projectName),
-	}
-	if len(projectSnapshot) != 0 {
-		dbOpts = append(dbOpts, starkdb.SetSnapshotCID(projectSnapshot))
-	}
-	if announce {
-		log.Info("\tusing announce")
-		dbOpts = append(dbOpts, starkdb.WithAnnouncing())
-	}
-	if encrypt {
-		log.Info("\tusing encryption")
-		dbOpts = append(dbOpts, starkdb.WithEncryption())
-	}
-
-	// open the db
-	db, dbCloser, err := starkdb.OpenDB(dbOpts...)
+	// connect to the server
+	conn, err := grpc.DialContext(ctx, viper.GetString("Address"), grpc.WithInsecure(), grpc.WithBlock())
 	if err != nil {
-		log.Fatal(err)
+		log.Fatalf("could not connect to a database: %v", err)
 	}
-
-	// defer close of the db
-	defer func() {
-		if err := dbCloser(); err != nil {
-			log.Fatal(err)
-		}
-	}()
+	defer conn.Close()
+	client := stark.NewStarkDbClient(conn)
 
 	// create the Record
-	log.Info("creating the record...")
-	record, err := starkdb.NewRecord(starkdb.SetAlias(*recordAlias), starkdb.SetDescription(*recordDescription))
+	record, err := starkdb.NewRecord(starkdb.SetAlias(key), starkdb.SetDescription(*recordDescription))
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	// add it to the db
-	log.Info("adding the record...")
-	if err := db.Set(key, record); err != nil {
-		log.Fatal(err)
+	// make a Set request
+	rec, err := client.Set(ctx, record)
+	config.CheckResponseErr(err)
+	if *printRecord {
+		fmt.Println(rec)
 	}
-
-	// update snapshot
-	newSnapshot := db.GetSnapshot()
-	if len(newSnapshot) == 0 {
-		log.Fatal("no snapshot CID produced by database")
-	}
-	conf, err := config.DumpConfig2Mem()
-	if err != nil {
-		log.Fatal(err)
-	}
-	conf.Databases[projectName] = newSnapshot
-	if err := conf.WriteConfig(); err != nil {
-		log.Fatal(err)
-	}
-	log.Infof("\tdb snapshot: %v", newSnapshot)
-	log.Info("done.")
 }

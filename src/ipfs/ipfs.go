@@ -85,13 +85,13 @@ func init() {
 	}
 
 	// check if repo is already locked
-
 	locked, err := fsrepo.LockedByOtherProcess(defaultIpfsRepo)
 	if err != nil {
 		panic(err)
 	}
 	if locked {
-		panic("default IPFS repo in use - is a daemon already running?")
+		//fmt.Println("IPFS already runnning - skipping IPFS plugin initialisation")
+		return
 	}
 
 	// initialise the plugins
@@ -149,6 +149,9 @@ func (client *Client) PrintNodeID() string {
 // public ipv4 address of the host machine, if available.
 func (client *Client) GetPublicIPv4Addr() (string, error) {
 	var ip string
+
+	fmt.Println(client.node.PeerHost.Addrs())
+
 	for _, addr := range client.node.PeerHost.Addrs() {
 		parts := strings.Split(addr.String(), "/")
 		if len(parts) < 3 {
@@ -191,7 +194,7 @@ func NewIPFSclient(ctx context.Context, bootstrappers []string) (*Client, error)
 	// defaultNodeOpts are the options used for the IPFS node.
 	defaultNodeOpts := &core.BuildCfg{
 		Online:    true,
-		Permanent: false,
+		Permanent: true,
 		Repo:      repo,
 		Routing:   libp2p.DHTOption,
 		ExtraOpts: map[string]bool{

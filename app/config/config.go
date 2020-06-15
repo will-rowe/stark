@@ -29,6 +29,9 @@ var (
 	// DefaultLicense for any file being created.
 	DefaultLicense = "MIT"
 
+	// DefaultAddress is the network address for the gRPC server.
+	DefaultAddress = "localhost:50051"
+
 	// ErrInvalidPath is used when the config file path is bad or doesn't exist.
 	ErrInvalidPath = fmt.Errorf("invalid config filepath")
 )
@@ -39,6 +42,7 @@ type StarkConfig struct {
 	ConfigPath string            `json:"configPath"`
 	FileType   string            `json:"fileType"`
 	License    string            `json:"license"`
+	Address    string            `json:"address"`
 	Databases  map[string]string `json:"databases"`
 }
 
@@ -80,6 +84,7 @@ func GenerateDefault(filePath string) error {
 		ConfigPath: filePath,
 		FileType:   DefaultType,
 		License:    DefaultLicense,
+		Address:    DefaultAddress,
 		Databases:  make(map[string]string),
 	}
 	return defaultConfig.WriteConfig()

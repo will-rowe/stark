@@ -22,28 +22,32 @@ THE SOFTWARE.
 package cmd
 
 import (
+	"context"
+	"encoding/json"
 	"fmt"
+	"time"
 
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
-	starkdb "github.com/will-rowe/stark"
+	"github.com/will-rowe/stark"
+	"github.com/will-rowe/stark/app/config"
+	"google.golang.org/grpc"
 )
 
 // dumpCmd represents the dump command
 var dumpCmd = &cobra.Command{
 	Use:   "dump <project name>",
-	Short: "Dump a database to STDOUT",
+	Short: "Dump an open database to STDOUT",
 	Long: `Dump will produce a JSON formatted
-	metadata string for the specified database, then 
-	print it to STDOUT.
+	database dump for the currently open 
+	database, then print it to STDOUT.
 	
 	The JSON will also contain all keys and linked
 	IPFS CIDs contained within the database. Full
 	records will not be returned.`,
-	Args: cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
-		runDump(args[0])
+		runDump()
 	},
 }
 
@@ -51,37 +55,48 @@ func init() {
 	rootCmd.AddCommand(dumpCmd)
 }
 
-func runDump(projectName string) {
+func runDump() {
 
-	// get the database local storage path
-	projs := viper.GetStringMapString("Databases")
-	projectSnapshot, ok := projs[projectName]
-	if !ok {
-		log.Fatalf("no project found for: %v", projectName)
-	}
-	if len(projectSnapshot) == 0 {
-		log.Fatalf("database is empty for: %v", projectName)
-	}
+	// get context
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
 
-	// open the db
-	db, dbCloser, err := starkdb.OpenDB(starkdb.SetProject(projectName), starkdb.SetSnapshotCID(projectSnapshot))
+	// connect to the server
+	conn, err := grpc.DialContext(ctx, viper.GetString("Address"), grpc.WithInsecure(), grpc.WithBlock())
 	if err != nil {
-		log.Fatal(err)
+		log.Fatalf("could not connect to a database: %v", err)
 	}
+	defer conn.Close()
+	c := stark.NewStarkDbClient(conn)
 
-	// defer close of the db
-	defer func() {
-		if err := dbCloser(); err != nil {
-			log.Fatal(err)
-		}
-	}()
-
-	// dump the db metadata
-	json, err := db.DumpMetadata()
-	if err != nil {
-		log.Fatal(err)
-	}
+	// make a Dump request
+	dump, err := c.Dump(ctx, &stark.Key{})
+	config.CheckResponseErr(err)
 
 	// print the json
-	fmt.Println(json)
+	data, err := json.MarshalIndent(dump, "", "\t")
+	if err != nil {
+		log.Fatal(err)
+	}
+	fmt.Println(string(data))
+
+	/*
+		publishWithPinata = dumpCmd.Flags().Bool("publishWithPinata", false, "Send a call to pinata to pin the dumped database")
+
+		If using --publishWithPinata, it is expected that
+		the PINATA_API_KEY and the PINATA_SECRET_KEY
+		environment variables are set.
+
+			// pinata call
+			if *publishWithPinata {
+				key := os.Getenv("PINATA_API_KEY")
+				secret := os.Getenv("PINATA_SECRET_KEY")
+				resp, err := db.PinataPublish(key, secret)
+				if err != nil {
+					log.Fatal(err)
+				}
+				fmt.Println(resp)
+			}
+	*/
+
 }
