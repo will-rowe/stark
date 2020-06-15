@@ -36,6 +36,10 @@ import (
 	"google.golang.org/grpc"
 )
 
+var (
+	listen *bool
+)
+
 // openCmd represents the open command
 var openCmd = &cobra.Command{
 	Use:   "open",
@@ -53,6 +57,7 @@ to quickly create a Cobra application.`,
 }
 
 func init() {
+	listen = openCmd.Flags().BoolP("listen", "l", false, "If true, database will listen for records being added on the network and make a copy in the current database")
 	rootCmd.AddCommand(openCmd)
 }
 
@@ -153,9 +158,8 @@ func runOpen(projectName string) {
 	// block until interupt or server error
 	select {
 	case err := <-errChan:
-		log.Warn("Fatal error: %v\n", err)
+		log.Warnf("server error: %v\n", err)
 	case <-interupt:
 	}
-
 	log.Info("interupt received")
 }
