@@ -1,4 +1,4 @@
-APP := "stark"
+APP := "stark-test"
 API := "stark.pb.go"
 
 .PHONY: all api build_app clean

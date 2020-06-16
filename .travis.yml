@@ -12,9 +12,10 @@ before_install:
   - go get -t -v ./...
 
 script:
+  - make
   - go test -race -coverprofile=coverage.txt -covermode=atomic -v ./...
-  - go build app/stark.go
-  - ./stark -h
+  - ./stark-test -h
+  - make clean
 
 after_success:
   - bash <(curl -s https://codecov.io/bash)
