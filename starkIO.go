@@ -3,7 +3,6 @@ package stark
 import (
 	"bytes"
 	"fmt"
-	"io/ioutil"
 
 	"github.com/gogo/protobuf/jsonpb"
 	cbor "github.com/ipfs/go-ipld-cbor"
@@ -67,31 +66,27 @@ func (starkdb *Db) GetNodeAddr() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return fmt.Sprintf("/ip4/%s/tcp/4001/p2p/%s", add, nodeID), nil
+	return fmt.Sprintf("%s/p2p/%s", add, nodeID), nil
 }
 
 // PinataPublish will issue an API call to the pinata
-// pinByHash endpoint and pin the database.
-func (starkdb *Db) PinataPublish(apiKey, apiSecret string) (string, error) {
+// pinByHash endpoint and pin the current database
+// instance.
+func (starkdb *Db) PinataPublish(apiKey, apiSecret string) (*starkpinata.APIResponse, error) {
 	hostAddress, err := starkdb.GetNodeAddr()
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 	pinataClient, err := starkpinata.NewClient(apiKey, apiSecret, hostAddress)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 	meta := starkpinata.NewMetadata(starkdb.project)
 	resp, err := pinataClient.PinByHashWithMetadata(starkdb.snapshotCID, meta)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
-	defer resp.Body.Close()
-	body, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		return "", err
-	}
-	return string(body), nil
+	return resp, nil
 }
 
 // Listen will start a subscription to the IPFS PubSub network
@@ -261,4 +256,13 @@ func (starkdb *Db) publishAnnouncement(message []byte) error {
 // TODO: this needs some more work.
 func (starkdb *Db) isOnline() bool {
 	return starkdb.ipfsClient.Online()
+}
+
+// send2log will send a message to the log if one
+// is attached.
+func (starkdb *Db) send2log(msg interface{}) {
+	if msg == nil || starkdb.loggingChan == nil {
+		return
+	}
+	starkdb.loggingChan <- msg
 }

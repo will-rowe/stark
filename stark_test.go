@@ -42,10 +42,20 @@ func TestIpfsNewClient(t *testing.T) {
 	defer cancel()
 
 	// test a client with a new repo
-	client, err := starkipfs.NewIPFSclient(ctx, starkipfs.DefaultBootstrappers)
+	client, err := starkipfs.NewIPFSclient(ctx)
 	if err != nil {
 		t.Fatal(err)
 	}
+
+	// bootstrap it
+	logger := make(chan interface{})
+	defer close(logger)
+	go func() {
+		for msg := range logger {
+			t.Log(msg)
+		}
+	}()
+	client.Connect(ctx, starkipfs.DefaultBootstrappers, logger)
 
 	// close the client
 	if err := client.EndSession(); err != nil {
@@ -61,7 +71,7 @@ func TestIpfsFileIO(t *testing.T) {
 	defer cancel()
 
 	// test a client with a new repo
-	client, err := starkipfs.NewIPFSclient(ctx, starkipfs.DefaultBootstrappers)
+	client, err := starkipfs.NewIPFSclient(ctx)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -112,11 +122,14 @@ func TestIpfsPubSub(t *testing.T) {
 	defer cancel()
 
 	// test a client with a new repo
-	client, err := starkipfs.NewIPFSclient(ctx, starkipfs.DefaultBootstrappers)
+	client, err := starkipfs.NewIPFSclient(ctx)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer client.EndSession()
+
+	// bootstrap it
+	client.Connect(ctx, starkipfs.DefaultBootstrappers, nil)
 
 	// test PubSub Subscribe
 	if err := client.Subscribe(ctx, tstTopic); err != nil {
@@ -222,13 +235,6 @@ func TestNewDB(t *testing.T) {
 	if _, err := starkdb.Set(ctx, testRecord); err == nil {
 		t.Fatal("duplicate sample was added")
 	}
-
-	// test JSON dump of metadata
-	jsonDump, err := starkdb.Dump(ctx, &Key{})
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Log(jsonDump)
 
 	// test snapshot
 	testSnapshot = starkdb.GetSnapshot()

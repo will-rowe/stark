@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
 
 	"github.com/pkg/errors"
 	starkhelpers "github.com/will-rowe/stark/src/helpers"
@@ -25,7 +26,13 @@ func (starkdb *Db) Get(ctx context.Context, key *Key) (*Record, error) {
 	}
 
 	// use the helper method to retrieve the Record
-	return starkdb.getRecordFromCID(cid)
+	record, err := starkdb.getRecordFromCID(cid)
+	if err != nil {
+		return nil, err
+	}
+
+	starkdb.send2log(fmt.Sprintf("record retrieved: %v->%v", key.GetId(), cid))
+	return record, nil
 }
 
 // Set will add a copy of a Record to the
@@ -116,6 +123,33 @@ func (starkdb *Db) Set(ctx context.Context, record *Record) (*Record, error) {
 	// add the returned CID to the local keystore
 	starkdb.cidLookup[key] = cid
 	starkdb.currentNumEntries++
+	starkdb.sessionEntries++
+
+	// job done
+	starkdb.send2log(fmt.Sprintf("record added: %v->%v", key, cid))
+
+	// use pinata if session interval reached
+	if starkdb.pinataInterval > 0 {
+		if starkdb.sessionEntries%starkdb.pinataInterval == 0 {
+			starkdb.send2log("pinning interval reached, uploading database to Pinata")
+			var k, s string
+			var ok1, ok2 bool
+			if k, ok1 = os.LookupEnv(DefaultPinataAPIkey); !ok1 {
+				return nil, ErrPinataKey
+			}
+			if s, ok2 = os.LookupEnv(DefaultPinataSecretKey); !ok2 {
+				return nil, ErrPinataSecret
+			}
+			go func() {
+				pinataResp, err := starkdb.PinataPublish(k, s)
+				if err != nil {
+					starkdb.send2log(fmt.Sprintf("pinata error: %v", err))
+					return
+				}
+				starkdb.send2log(fmt.Sprintf("pinata API response: %v", pinataResp.Status))
+			}()
+		}
+	}
 
 	// add the CID to the record and return
 	record.PreviousCID = cid

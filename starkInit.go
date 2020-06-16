@@ -9,6 +9,7 @@ import (
 
 	starkcrypto "github.com/will-rowe/stark/src/crypto"
 	starkipfs "github.com/will-rowe/stark/src/ipfs"
+	starkpinata "github.com/will-rowe/stark/src/pinata"
 )
 
 // SetProject is an option setter for the OpenDB
@@ -84,6 +85,31 @@ func WithEncryption() DbOption {
 	}
 }
 
+// WithPinata is an option setter for the OpenDB constructor
+// that tells starkDB to pin it's contents with pinata every
+// time the interval is passed during set operations. A value
+// of < 1 tells starkDB NOT to use pinata (default).
+//
+// Note: This option requires the PINATA_API_KEY and the
+// PINATA_SECRET_KEY environment variables to be set.
+func WithPinata(interval int) DbOption {
+	return func(starkdb *Db) error {
+		return starkdb.setPinataPinInterval(interval)
+	}
+}
+
+// WithLogging is an option setter for the OpenDB constructor
+// that provides starkDB with a logging channel to send
+// internal state messages during the lifetime of the
+// starkDB instance back to the caller.
+//
+// Note: The caller should close this channel when done.
+func WithLogging(loggingChan chan interface{}) DbOption {
+	return func(starkdb *Db) error {
+		return starkdb.setLogger(loggingChan)
+	}
+}
+
 // OpenDB opens a new instance of a starkdb.
 //
 // If there is an existing database in the specified local
@@ -99,17 +125,20 @@ func OpenDB(options ...DbOption) (*Db, func() error, error) {
 
 	// create the uninitialised DB
 	starkdb := &Db{
-		ctx:       ctx,
-		ctxCancel: cancel,
-		cidLookup: make(map[string]string),
+		ctx:         ctx,
+		ctxCancel:   cancel,
+		cidLookup:   make(map[string]string),
+		loggingChan: nil,
 
 		// defaults
-		project:       DefaultProject,
-		snapshotCID:   "",
-		pinning:       true,
-		announcing:    false,
-		cipherKey:     nil,
-		bootstrappers: starkipfs.DefaultBootstrappers,
+		project:        DefaultProject,
+		snapshotCID:    "",
+		pinning:        true,
+		announcing:     false,
+		cipherKey:      nil,
+		bootstrappers:  starkipfs.DefaultBootstrappers,
+		pinataInterval: 0,
+		sessionEntries: 0,
 	}
 
 	// add the provided options
@@ -120,12 +149,20 @@ func OpenDB(options ...DbOption) (*Db, func() error, error) {
 		}
 	}
 
+	// validate options
+	if !starkdb.pinning && (starkdb.pinataInterval > 0) {
+		return nil, nil, ErrPinataOpt
+	}
+
 	// init the IPFS client
-	client, err := starkipfs.NewIPFSclient(starkdb.ctx, starkdb.bootstrappers)
+	client, err := starkipfs.NewIPFSclient(starkdb.ctx)
 	if err != nil {
 		return nil, nil, err
 	}
 	starkdb.ipfsClient = client
+
+	// bootstrap the IPFS node
+	go starkdb.ipfsClient.Connect(starkdb.ctx, starkdb.bootstrappers, starkdb.loggingChan)
 
 	// if no base CID was provided, initialise a snapshot
 	if len(starkdb.snapshotCID) == 0 {
@@ -241,5 +278,43 @@ func (starkdb *Db) setEncryption(val bool) error {
 
 	// set the key
 	starkdb.cipherKey = cipherKey
+	return nil
+}
+
+// setPinataPinInterval tells starkDB to pin it's contents
+// with pinata every time the interval is reached for
+// set operations.
+func (starkdb *Db) setPinataPinInterval(interval int) error {
+
+	// less the one then just leave the default interval set
+	if interval < 1 {
+		return nil
+	}
+
+	// check pinata ENV variables are set
+	var k, s string
+	var ok1, ok2 bool
+	if k, ok1 = os.LookupEnv(DefaultPinataAPIkey); !ok1 {
+		return ErrPinataKey
+	}
+	if s, ok2 = os.LookupEnv(DefaultPinataSecretKey); !ok2 {
+		return ErrPinataSecret
+	}
+
+	// check the API
+	_, err := starkpinata.NewClient(k, s, "")
+	if err != nil {
+		return ErrPinataAPI(err)
+	}
+
+	// set the interval
+	starkdb.pinataInterval = interval
+	return nil
+}
+
+// setLogger will attach a logging channel to
+// the starkDB instance.
+func (starkdb *Db) setLogger(loggingChan chan interface{}) error {
+	starkdb.loggingChan = loggingChan
 	return nil
 }

@@ -40,9 +40,10 @@ import (
 )
 
 var (
-	announce *bool
-	encrypt  *bool
-	listen   *bool
+	announce       *bool
+	encrypt        *bool
+	listen         *bool
+	pinataInterval *int
 )
 
 // openCmd represents the open command
@@ -62,9 +63,10 @@ to quickly create a Cobra application.`,
 }
 
 func init() {
-	announce = openCmd.Flags().BoolP("announce", "a", false, "Announce the Record to the PubSub network when it is added to the Project database")
-	encrypt = openCmd.Flags().BoolP("encrypt", "e", false, fmt.Sprintf("Encrypt record fields using the password stored in the %v env variable", starkdb.DefaultStarkEnvVariable))
-	listen = openCmd.Flags().BoolP("listen", "l", false, "If true, database will listen for records being added on the network and make a copy in the current database")
+	announce = openCmd.Flags().BoolP("withAnnounce", "a", false, "Announce all records over PubSub as they are added to the open database.")
+	encrypt = openCmd.Flags().BoolP("withEncrypt", "e", false, fmt.Sprintf("Encrypt record fields using the password stored in the %v env variable.", starkdb.DefaultStarkEnvVariable))
+	listen = openCmd.Flags().BoolP("withListen", "l", false, "Listen for records being announced over PubSub and make a copy in the open database.")
+	pinataInterval = openCmd.Flags().IntP("withPinata", "p", 0, fmt.Sprintf("Sets Pinata interval for pinning db contents - requires %v and %v to be set. (<1 == Pinata disabled)", starkdb.DefaultPinataAPIkey, starkdb.DefaultPinataSecretKey))
 	rootCmd.AddCommand(openCmd)
 }
 
@@ -84,9 +86,19 @@ func runOpen(projectName string) {
 		log.Infof("\tsnapshot: %v", projectSnapshot)
 	}
 
+	// create a message channel for internal logging
+	msgChan := make(chan interface{})
+	defer close(msgChan)
+	go func() {
+		for msg := range msgChan {
+			log.Infof("\t%v", msg)
+		}
+	}()
+
 	// setup the db opts
 	dbOpts := []starkdb.DbOption{
 		starkdb.SetProject(projectName),
+		starkdb.WithLogging(msgChan),
 	}
 	if len(projectSnapshot) != 0 {
 		dbOpts = append(dbOpts, starkdb.SetSnapshotCID(projectSnapshot))
@@ -98,6 +110,13 @@ func runOpen(projectName string) {
 	if *encrypt {
 		log.Info("\tusing encryption")
 		dbOpts = append(dbOpts, starkdb.WithEncryption())
+	}
+	if *pinataInterval > 0 {
+		log.Infof("\tusing Pinata every %d records", *pinataInterval)
+		dbOpts = append(dbOpts, starkdb.WithPinata(*pinataInterval))
+	}
+	if *listen {
+		log.Info("\tusing listen")
 	}
 
 	// open the db
@@ -113,7 +132,7 @@ func runOpen(projectName string) {
 
 	// start the listener if requested
 	if *listen {
-		log.Info("starting PubSub listener...")
+		log.Info("starting the PubSub listener...")
 		recs, errs, err := db.Listen(terminator)
 		if err != nil {
 			log.Fatal(err)
@@ -123,12 +142,12 @@ func runOpen(projectName string) {
 			defer cancel()
 			select {
 			case rec := <-recs:
-				log.Info("found record via PubSub, adding now...")
+				log.Infof("\tPubSub: found record (%v)", rec.GetUuid())
 				_, err := db.Set(ctx, rec)
 				if err != nil {
 					errChan <- err
 				}
-				log.Infof("\tadded: %v", rec.GetUuid())
+				log.Infof("\tPubSub: added new record (%v->%v)", rec.GetAlias(), rec.GetPreviousCID())
 			case err := <-errs:
 				errChan <- err
 			}
@@ -186,16 +205,16 @@ func runOpen(projectName string) {
 			errChan <- err
 		}
 	}()
-	log.Info("ready...")
 
 	// setup the interupt
 	interupt := make(chan os.Signal)
 	signal.Notify(interupt, os.Interrupt, syscall.SIGTERM)
 
 	// block until interupt or server error
+	log.Info("ready...")
 	select {
 	case err := <-errChan:
-		log.Warnf("server error: %v\n", err)
+		log.Errorf("\t%v", err)
 	case <-interupt:
 	}
 	log.Info("interupt received")

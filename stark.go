@@ -38,6 +38,12 @@ const (
 	// DefaultProject is the default project name used if none provided to the OpenDB function.
 	DefaultProject = "starkDB-default-project"
 
+	// DefaultPinataAPIkey is the env variable for the pinata API.
+	DefaultPinataAPIkey = "PINATA_API_KEY"
+
+	// DefaultPinataSecretKey is the env variable for the pinata secret key.
+	DefaultPinataSecretKey = "PINATA_SECRET_KEY"
+
 	// DefaultStarkEnvVariable is the env variable starkDB looks for when told to use encryption.
 	DefaultStarkEnvVariable = "STARK_DB_PASSWORD"
 )
@@ -100,6 +106,20 @@ var (
 	// ErrNoSub indicates the IPFS node is not registered for PubSub.
 	ErrNoSub = fmt.Errorf("IPFS node has no topic registered for PubSub")
 
+	// ErrPinataAPI indicates the Pinata API can't be reached.
+	ErrPinataAPI = func(err error) error {
+		return fmt.Errorf("failed to reach Pinata API: %w", err)
+	}
+
+	// ErrPinataOpt is issued for a db option pinning conflict.
+	ErrPinataOpt = fmt.Errorf("can't use WithPinata when WithNoPinning")
+
+	// ErrPinataKey is issued when the no env variable for the Pinata API key is set.
+	ErrPinataKey = fmt.Errorf("no %s environment variable found", DefaultPinataAPIkey)
+
+	// ErrPinataSecret is issued when the no env variable for the Pinata secret is set.
+	ErrPinataSecret = fmt.Errorf("no %s environment variable found", DefaultPinataSecretKey)
+
 	// ErrRecordHistory indicates two Records with the same UUID a gap in their history.
 	ErrRecordHistory = fmt.Errorf("both Records share UUID but have a gap in their history")
 
@@ -116,15 +136,18 @@ type Db struct {
 	cidLookup    map[string]string // quick access to Record CIDs using user-supplied keys
 
 	// user-defined settings
-	project       string   // the project which the database instance is managing
-	bootstrappers []string // list of addresses to use for IPFS peer discovery
-	snapshotCID   string   // the optional snapshot CID provided during database opening
-	pinning       bool     // if true, IPFS IO will be done with pinning
-	announcing    bool     // if true, new records added to the IPFS will be broadcast on the pubsub topic for this project
-	cipherKey     []byte   // cipher key for encrypted DB instances
+	project        string           // the project which the database instance is managing
+	bootstrappers  []string         // list of addresses to use for IPFS peer discovery
+	snapshotCID    string           // the optional snapshot CID provided during database opening
+	pinning        bool             // if true, IPFS IO will be done with pinning
+	pinataInterval int              // the number of set operations permitted between pinata pinning (-1 = no pinata pinning)
+	announcing     bool             // if true, new records added to the IPFS will be broadcast on the pubsub topic for this project
+	cipherKey      []byte           // cipher key for encrypted DB instances
+	loggingChan    chan interface{} // user provided channel to collect logging info from database internals
 
 	// db stats
 	currentNumEntries int // the number of keys in the keystore (checked on db open and then incremented/decremented during Set/Delete ops)
+	sessionEntries    int // the number of keys added during the current database instance (not decremented after Delete ops)
 }
 
 // DbOption is a wrapper struct used to pass functional
