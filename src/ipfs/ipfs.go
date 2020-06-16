@@ -8,15 +8,16 @@ import (
 	"net"
 	"path/filepath"
 	"strings"
+	"sync"
 
 	config "github.com/ipfs/go-ipfs-config"
-	"github.com/ipfs/go-ipfs/core/bootstrap"
 	"github.com/ipfs/go-ipfs/core/coreapi"
 	"github.com/ipfs/go-ipfs/core/node/libp2p"
 	"github.com/ipfs/go-ipfs/plugin/loader"
 	"github.com/ipfs/go-ipfs/repo"
 	icore "github.com/ipfs/interface-go-ipfs-core"
 	"github.com/libp2p/go-libp2p-core/peer"
+	peerstore "github.com/libp2p/go-libp2p-peerstore"
 	ma "github.com/multiformats/go-multiaddr"
 
 	"github.com/ipfs/go-ipfs/core" // This package is needed so that all the preloaded plugins are loaded automatically
@@ -148,30 +149,66 @@ func (client *Client) PrintNodeID() string {
 // GetPublicIPv4Addr uses the host addresses to return the
 // public ipv4 address of the host machine, if available.
 func (client *Client) GetPublicIPv4Addr() (string, error) {
-	var ip string
-
-	fmt.Println(client.node.PeerHost.Addrs())
-
 	for _, addr := range client.node.PeerHost.Addrs() {
 		parts := strings.Split(addr.String(), "/")
 		if len(parts) < 3 {
 			continue
 		}
+		if parts[1] != "ip4" {
+			continue
+		}
 		parsed := net.ParseIP(parts[2])
 		if parsed != nil && helpers.IsPublicIPv4(parsed) {
-			ip = parts[2]
-			break
+			return addr.String(), nil
 		}
 	}
-	if ip == "" {
-		return ip, fmt.Errorf("no public IPv4 address was found")
-	}
-	return ip, nil
+	return "", fmt.Errorf("no public IPv4 address was found for IPFS node")
 }
 
 // Online will return true if the node is online.
 func (client *Client) Online() bool {
 	return client.node.IsOnline
+}
+
+// Connect will connect the client to peers.
+// It is adapted from https://github.com/ipfs/go-ipfs/tree/master/docs/examples/go-ipfs-as-a-library
+func (client *Client) Connect(ctx context.Context, peers []string, logger chan interface{}) {
+	var wg sync.WaitGroup
+	peerInfos := make(map[peer.ID]*peerstore.PeerInfo, len(peers))
+	for _, addrStr := range peers {
+		addr, err := ma.NewMultiaddr(addrStr)
+		if err != nil {
+			if logger != nil {
+				logger <- err
+			}
+			return
+		}
+		pii, err := peerstore.InfoFromP2pAddr(addr)
+		if err != nil {
+			if logger != nil {
+				logger <- err
+			}
+			return
+		}
+		pi, ok := peerInfos[pii.ID]
+		if !ok {
+			pi = &peerstore.PeerInfo{ID: pii.ID}
+			peerInfos[pi.ID] = pi
+		}
+		pi.Addrs = append(pi.Addrs, pii.Addrs...)
+	}
+	wg.Add(len(peerInfos))
+	for _, peerInfo := range peerInfos {
+		go func(peerInfo *peerstore.PeerInfo) {
+			defer wg.Done()
+			err := client.ipfs.Swarm().Connect(ctx, *peerInfo)
+			if err != nil && logger != nil {
+				logger <- fmt.Errorf("IPFS bootstrapper - %w", err)
+			}
+		}(peerInfo)
+	}
+	wg.Wait()
+	return
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -183,7 +220,7 @@ func (client *Client) Online() bool {
 //
 // Note: if no repoPath provided, this function will attempt to
 // use the IPFS default repo path.
-func NewIPFSclient(ctx context.Context, bootstrappers []string) (*Client, error) {
+func NewIPFSclient(ctx context.Context) (*Client, error) {
 
 	// open the repo
 	repo, err := fsrepo.Open(defaultIpfsRepo)
@@ -207,17 +244,6 @@ func NewIPFSclient(ctx context.Context, bootstrappers []string) (*Client, error)
 	if err != nil {
 		return nil, err
 	}
-
-	// bootstrap the node
-	adds, err := setupBootstrappers(bootstrappers)
-	if err != nil {
-		return nil, err
-	}
-	addrInfos, err := peer.AddrInfosFromP2pAddrs(adds...)
-	if err != nil {
-		return nil, err
-	}
-	node.Bootstrap(bootstrap.BootstrapConfigWithPeers(addrInfos))
 
 	// get the API
 	api, err := coreapi.NewCoreAPI(node)
@@ -250,21 +276,4 @@ func initIPFSplugins(repoPath string) (*loader.PluginLoader, error) {
 		return nil, err
 	}
 	return pl, err
-}
-
-// setupBootstrappers takes a list of bootstrapper nodes
-// and returns their multiaddresses.
-func setupBootstrappers(nodes []string) ([]ma.Multiaddr, error) {
-	if len(nodes) == 0 {
-		return nil, fmt.Errorf("no list of bootstrapping nodes provided")
-	}
-	adds := []ma.Multiaddr{}
-	for _, node := range nodes {
-		add, err := ma.NewMultiaddr(node)
-		if err != nil {
-			return nil, err
-		}
-		adds = append(adds, add)
-	}
-	return adds, nil
 }
