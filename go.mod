@@ -7,7 +7,7 @@ require (
 	github.com/golang/protobuf v1.4.1
 	github.com/google/uuid v1.1.1
 	github.com/ipfs/go-cid v0.0.5
-	github.com/ipfs/go-ipfs v0.5.1
+	github.com/ipfs/go-ipfs v0.5.0
 	github.com/ipfs/go-ipfs-config v0.5.3
 	github.com/ipfs/go-ipfs-files v0.0.8
 	github.com/ipfs/go-ipld-cbor v0.0.4
@@ -26,5 +26,4 @@ require (
 	golang.org/x/sys v0.0.0-20200610111108-226ff32320da // indirect
 	google.golang.org/grpc v1.29.1
 	google.golang.org/protobuf v1.24.0
-	github.com/ipfs/go-graphsync v0.0.5 // indirect
 )
