@@ -19,4 +19,4 @@ build_app: dep api
 	@go build -v -o $(APP) app/stark.go
 
 clean:
-	@rm $(APP) $(API)
+	@rm $(APP)
