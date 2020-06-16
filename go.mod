@@ -14,9 +14,7 @@ require (
 	github.com/ipfs/go-ipld-format v0.2.0
 	github.com/ipfs/go-merkledag v0.3.2
 	github.com/ipfs/interface-go-ipfs-core v0.2.7
-	github.com/kardianos/osext v0.0.0-20190222173326-2bc1f35cddc0 // indirect
 	github.com/libp2p/go-libp2p-core v0.5.3
-	github.com/libp2p/go-libp2p-crypto v0.1.0
 	github.com/libp2p/go-libp2p-peerstore v0.2.3
 	github.com/mitchellh/go-homedir v1.1.0
 	github.com/multiformats/go-multiaddr v0.2.1

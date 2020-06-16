@@ -49,13 +49,11 @@ var (
 // openCmd represents the open command
 var openCmd = &cobra.Command{
 	Use:   "open",
-	Short: "A brief description of your command",
-	Long: `A longer description that spans multiple lines and likely contains examples
-and usage of using your command. For example:
-
-Cobra is a CLI library for Go that empowers applications.
-This application is a tool to generate the needed files
-to quickly create a Cobra application.`,
+	Short: "Open a stark database",
+	Long: `Open a stark database. The database must
+	have already neen initialised with the init subcommand.
+	
+	This command will serve a database via a gRPC server.`,
 	Args: cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		runOpen(args[0])
