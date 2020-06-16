@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"net/http"
 	"time"
 )
@@ -30,6 +31,15 @@ var (
 	// ErrMetaLimit is issued when too many key value pairs are added to the Pinata metadata.
 	ErrMetaLimit = fmt.Errorf("metadata capacity reached (only %d key values pairs allowed)", MetaDataLimit)
 )
+
+// APIResponse is a struct to unmarshal
+// the Pinata API response into.
+type APIResponse struct {
+	ID       string
+	Ipfshash string
+	Status   string
+	Name     string
+}
 
 // Client handles pinata requests. It wraps the
 // standard http.Client and adds the pinata
@@ -99,7 +109,7 @@ func (client *Client) TestAuthentication() (*http.Response, error) {
 // For more details on using the metadata,
 // see:
 // pinata.cloud/documentation#PinByHash
-func (client *Client) PinByHashWithMetadata(cid string, metadata *Metadata) (*http.Response, error) {
+func (client *Client) PinByHashWithMetadata(cid string, metadata *Metadata) (*APIResponse, error) {
 	request := PinQueueRequest{
 		Cid: cid,
 	}
@@ -120,7 +130,20 @@ func (client *Client) PinByHashWithMetadata(cid string, metadata *Metadata) (*ht
 		return nil, err
 	}
 	req.Header.Set("Content-Type", "application/json")
-	return client.Do(req)
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+	apiResp := &APIResponse{}
+	if err := json.Unmarshal(body, apiResp); err != nil {
+		return nil, err
+	}
+	return apiResp, nil
 }
 
 // PinQueueRequest is the request structure as outlined in
