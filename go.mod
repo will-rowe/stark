@@ -26,4 +26,5 @@ require (
 	golang.org/x/sys v0.0.0-20200610111108-226ff32320da // indirect
 	google.golang.org/grpc v1.29.1
 	google.golang.org/protobuf v1.24.0
+	github.com/ipfs/go-graphsync v0.0.5 // indirect
 )
