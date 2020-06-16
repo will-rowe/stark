@@ -42,15 +42,11 @@
 
 Both the Go package and the Command Line Utility require `go-ipfs`. See download and install instructions [here](https://docs.ipfs.io/guides/guides/install/).
 
-### As a Go package
+### Installing the package and app using Go
 
 ```sh
-go get -d github.com/will-rowe/stark
+go get -v github.com/will-rowe/stark/...
 ```
-
-### As an app
-
-TODO
 
 ## Documentation
 
