@@ -35,7 +35,7 @@ import (
 	"github.com/spf13/viper"
 	"github.com/will-rowe/stark"
 	starkdb "github.com/will-rowe/stark"
-	"github.com/will-rowe/stark/app/config"
+	"github.com/will-rowe/stark/stark/config"
 	"google.golang.org/grpc"
 )
 

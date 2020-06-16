@@ -16,7 +16,7 @@ dep:
 	@go get -v -d ./...
 
 build_app: dep api
-	@go build -v -o $(APP) app/stark.go
+	@go build -v -o $(APP) stark/main.go
 
 clean:
 	@rm $(APP)

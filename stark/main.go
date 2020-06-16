@@ -21,7 +21,7 @@ THE SOFTWARE.
 */
 package main
 
-import "github.com/will-rowe/stark/app/cmd"
+import "github.com/will-rowe/stark/stark/cmd"
 
 func main() {
 	cmd.Execute()

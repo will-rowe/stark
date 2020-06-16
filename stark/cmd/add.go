@@ -1,3 +1,4 @@
+// Package cmd is the command line utility for managing a stark database.
 /*
 Copyright © 2020 Will Rowe <w.p.m.rowe@gmail.com>
 
@@ -23,47 +24,45 @@ package cmd
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"time"
 
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
-	"github.com/will-rowe/stark"
-	"github.com/will-rowe/stark/app/config"
+	starkdb "github.com/will-rowe/stark"
+	"github.com/will-rowe/stark/stark/config"
 	"google.golang.org/grpc"
-	"google.golang.org/protobuf/proto"
 )
 
 var (
-	recEncoding *string
-	hReadable   *bool
+	printRecord       *bool
+	recordDescription *string
 )
 
-// getCmd represents the get command
-var getCmd = &cobra.Command{
-	Use:   "get",
-	Short: "Get a record from an open database",
-	Long:  `Get a record from an open database.`,
-	Args:  cobra.ExactArgs(1),
+// addCmd represents the add command
+var addCmd = &cobra.Command{
+	Use:   "add <key>",
+	Short: "Add a record to an open database",
+	Long: `Add a record to an open database.
+	
+	This command only offers basic Record fields at the moment.
+	It may also be subject to change depending on best to add
+	Records as the Record structure evolves.`,
+	Args: cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
-		runGet(args[0])
+		runAdd(args[0])
 	},
 }
 
 func init() {
-	recEncoding = getCmd.Flags().StringP("encoding", "E", "json", "Encoding to use when printing the retrieved Record (json or proto)")
-	hReadable = getCmd.Flags().BoolP("humanReadable", "H", false, "If true, output will be human readable")
-	rootCmd.AddCommand(getCmd)
+	recordDescription = addCmd.Flags().String("description", "", "Description to give new record (enclose in quotes)")
+	printRecord = addCmd.Flags().BoolP("printRecord", "P", false, "Print the record once it has been added to the database")
+	rootCmd.AddCommand(addCmd)
 }
 
-func runGet(key string) {
-
-	// check the options
-	if (*recEncoding != "json") && (*recEncoding != "proto") {
-		log.Fatalf("unsupported encoding requested: %s", *recEncoding)
-	}
+// runAdd is the main block for the add subcommand
+func runAdd(key string) {
 
 	// get context
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
@@ -75,25 +74,18 @@ func runGet(key string) {
 		log.Fatalf("could not connect to a database: %v", err)
 	}
 	defer conn.Close()
-	c := stark.NewStarkDbClient(conn)
+	client := starkdb.NewStarkDbClient(conn)
 
-	// make a Get request
-	record, err := c.Get(ctx, &stark.Key{Id: key})
-	config.CheckResponseErr(err)
-
-	// print the returned Record
-	var data []byte
-	if *recEncoding == "proto" {
-		data, err = proto.Marshal(record)
-	} else {
-		data, err = json.MarshalIndent(record, "", "\t")
-	}
+	// create the Record
+	record, err := starkdb.NewRecord(starkdb.SetAlias(key), starkdb.SetDescription(*recordDescription))
 	if err != nil {
 		log.Fatal(err)
 	}
-	if *hReadable {
-		fmt.Println(string(data))
-	} else {
-		fmt.Println(data)
+
+	// make a Set request
+	rec, err := client.Set(ctx, record)
+	config.CheckResponseErr(err)
+	if *printRecord {
+		fmt.Println(rec)
 	}
 }

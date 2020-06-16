@@ -31,31 +31,39 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"github.com/will-rowe/stark"
-	"github.com/will-rowe/stark/app/config"
+	"github.com/will-rowe/stark/stark/config"
 	"google.golang.org/grpc"
+	"google.golang.org/protobuf/proto"
 )
 
-// dumpCmd represents the dump command
-var dumpCmd = &cobra.Command{
-	Use:   "dump <project name>",
-	Short: "Dump an open database to STDOUT",
-	Long: `Dump will produce a JSON formatted
-	database dump for the currently open 
-	database, then print it to STDOUT.
-	
-	The JSON will also contain all keys and linked
-	IPFS CIDs contained within the database. Full
-	records will not be returned.`,
+var (
+	recEncoding *string
+	hReadable   *bool
+)
+
+// getCmd represents the get command
+var getCmd = &cobra.Command{
+	Use:   "get",
+	Short: "Get a record from an open database",
+	Long:  `Get a record from an open database.`,
+	Args:  cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
-		runDump()
+		runGet(args[0])
 	},
 }
 
 func init() {
-	rootCmd.AddCommand(dumpCmd)
+	recEncoding = getCmd.Flags().StringP("encoding", "E", "json", "Encoding to use when printing the retrieved Record (json or proto)")
+	hReadable = getCmd.Flags().BoolP("humanReadable", "H", false, "If true, output will be human readable")
+	rootCmd.AddCommand(getCmd)
 }
 
-func runDump() {
+func runGet(key string) {
+
+	// check the options
+	if (*recEncoding != "json") && (*recEncoding != "proto") {
+		log.Fatalf("unsupported encoding requested: %s", *recEncoding)
+	}
 
 	// get context
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
@@ -69,34 +77,23 @@ func runDump() {
 	defer conn.Close()
 	c := stark.NewStarkDbClient(conn)
 
-	// make a Dump request
-	dump, err := c.Dump(ctx, &stark.Key{})
+	// make a Get request
+	record, err := c.Get(ctx, &stark.Key{Id: key})
 	config.CheckResponseErr(err)
 
-	// print the json
-	data, err := json.MarshalIndent(dump, "", "\t")
+	// print the returned Record
+	var data []byte
+	if *recEncoding == "proto" {
+		data, err = proto.Marshal(record)
+	} else {
+		data, err = json.MarshalIndent(record, "", "\t")
+	}
 	if err != nil {
 		log.Fatal(err)
 	}
-	fmt.Println(string(data))
-
-	/*
-		publishWithPinata = dumpCmd.Flags().Bool("publishWithPinata", false, "Send a call to pinata to pin the dumped database")
-
-		If using --publishWithPinata, it is expected that
-		the PINATA_API_KEY and the PINATA_SECRET_KEY
-		environment variables are set.
-
-			// pinata call
-			if *publishWithPinata {
-				key := os.Getenv("PINATA_API_KEY")
-				secret := os.Getenv("PINATA_SECRET_KEY")
-				resp, err := db.PinataPublish(key, secret)
-				if err != nil {
-					log.Fatal(err)
-				}
-				fmt.Println(resp)
-			}
-	*/
-
+	if *hReadable {
+		fmt.Println(string(data))
+	} else {
+		fmt.Println(data)
+	}
 }

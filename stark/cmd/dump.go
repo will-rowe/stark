@@ -22,67 +22,61 @@ THE SOFTWARE.
 package cmd
 
 import (
-	"os"
+	"context"
+	"encoding/json"
+	"fmt"
+	"time"
 
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
-	starkdb "github.com/will-rowe/stark"
-	"github.com/will-rowe/stark/app/config"
+	"github.com/will-rowe/stark"
+	"github.com/will-rowe/stark/stark/config"
+	"google.golang.org/grpc"
 )
 
-// initCmd represents the init command
-var initCmd = &cobra.Command{
-	Use:   "init <project name>",
-	Short: "Initialise a stark database",
-	Long: `This subcommand will initialise a stark database.
+// dumpCmd represents the dump command
+var dumpCmd = &cobra.Command{
+	Use:   "dump <project name>",
+	Short: "Dump an open database to STDOUT",
+	Long: `Dump will produce a JSON formatted
+	database dump for the currently open 
+	database, then print it to STDOUT.
 	
-	A database will be setup for the provided project name.
-	The database project and CID will be added to the stark
-	app's config file.`,
-	Args: cobra.ExactArgs(1),
+	The JSON will also contain all keys and linked
+	IPFS CIDs contained within the database. Full
+	records will not be returned.`,
 	Run: func(cmd *cobra.Command, args []string) {
-		runInit(args[0])
+		runDump()
 	},
 }
 
 func init() {
-	rootCmd.AddCommand(initCmd)
+	rootCmd.AddCommand(dumpCmd)
 }
 
-func runInit(projectName string) {
-	config.StartLog("init")
-	log.Info("initialising database...")
-	log.Infof("\tproject name: %v", projectName)
+func runDump() {
 
-	// check we don't have a database for this project yet
-	projs := viper.GetStringMapString("Databases")
-	if _, ok := projs[projectName]; ok {
-		log.Warn("project with this name already exists")
-		os.Exit(0)
+	// get context
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+
+	// connect to the server
+	conn, err := grpc.DialContext(ctx, viper.GetString("Address"), grpc.WithInsecure(), grpc.WithBlock())
+	if err != nil {
+		log.Fatalf("could not connect to a database: %v", err)
 	}
+	defer conn.Close()
+	c := stark.NewStarkDbClient(conn)
 
-	// otherwise load the config in so we can update
-	conf, err := config.DumpConfig2Mem()
+	// make a Dump request
+	dump, err := c.Dump(ctx, &stark.Key{})
+	config.CheckResponseErr(err)
+
+	// print the json
+	data, err := json.MarshalIndent(dump, "", "\t")
 	if err != nil {
 		log.Fatal(err)
 	}
-	conf.Databases[projectName] = ""
-
-	// check the DB can be opened
-	// TODO: more checks to go here
-	log.Info("checking new database...")
-	_, dbCloser, err := starkdb.OpenDB(starkdb.SetProject(projectName))
-	if err != nil {
-		log.Fatal(err)
-	}
-	if err := dbCloser(); err != nil {
-		log.Fatal(err)
-	}
-
-	// write config back
-	if err := conf.WriteConfig(); err != nil {
-		log.Fatal(err)
-	}
-	log.Info("done.")
+	fmt.Println(string(data))
 }

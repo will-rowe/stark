@@ -30,8 +30,8 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
-	"github.com/will-rowe/stark/app/config"
 	"github.com/will-rowe/stark/src/helpers"
+	"github.com/will-rowe/stark/stark/config"
 )
 
 var cfgFile string
