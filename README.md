@@ -1,5 +1,5 @@
 <div align="center">
-  <h1>STARK</h1>
+  <img src="docs/stark-logo-with-text.png?raw=true?" alt="stark-logo" width="250">
   <h3>Sequence Transmission And Record Keeping</h3>
   <hr>
   <a href="https://travis-ci.org/will-rowe/stark"><img src="https://travis-ci.org/will-rowe/stark.svg?branch=master" alt="travis"></a>
@@ -8,8 +8,6 @@
   <a href="https://codecov.io/gh/will-rowe/stark"><img src="https://codecov.io/gh/will-rowe/stark/branch/master/graph/badge.svg" alt="codecov"></a>
   <a href='https://stark-docs.readthedocs.io/en/latest/?badge=latest'><img src='https://readthedocs.org/projects/stark-docs/badge/?version=latest' alt='Documentation Status'></a>
 </div>
-
-> WIP: The database works and the API is relatively stable. The CLI is in development.
 
 ## Overview
 
