@@ -11,17 +11,16 @@ import (
 	"sync"
 
 	config "github.com/ipfs/go-ipfs-config"
+	"github.com/ipfs/go-ipfs/core" // This package is needed so that all the preloaded plugins are loaded automatically
 	"github.com/ipfs/go-ipfs/core/coreapi"
 	"github.com/ipfs/go-ipfs/core/node/libp2p"
 	"github.com/ipfs/go-ipfs/plugin/loader"
 	"github.com/ipfs/go-ipfs/repo"
+	"github.com/ipfs/go-ipfs/repo/fsrepo"
 	icore "github.com/ipfs/interface-go-ipfs-core"
 	"github.com/libp2p/go-libp2p-core/peer"
 	peerstore "github.com/libp2p/go-libp2p-peerstore"
 	ma "github.com/multiformats/go-multiaddr"
-
-	"github.com/ipfs/go-ipfs/core" // This package is needed so that all the preloaded plugins are loaded automatically
-	"github.com/ipfs/go-ipfs/repo/fsrepo"
 
 	"github.com/will-rowe/stark/src/helpers"
 )
@@ -70,6 +69,9 @@ var (
 
 	// ErrNoLinks is issued when no links are found in an IPFS DAG node.
 	ErrNoLinks = fmt.Errorf("no links found in IPFS DAG node")
+
+	// ErrOffline indicates node is offline.
+	ErrOffline = fmt.Errorf("the IPFS node is offline")
 )
 
 // init will setup the IPFS repo
@@ -128,17 +130,6 @@ func (client *Client) EndSession() error {
 	}
 	client.node.IsOnline = false
 	return nil
-}
-
-////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// TODO: the following methods are untested and subject to change:
-
-// PrintListeners will print the peers which this node is listening on.
-func (client *Client) PrintListeners() {
-	addrs := client.node.PeerHost.Addrs()
-	for _, addr := range addrs {
-		fmt.Printf("IPFS client node listening on %v/p2p/%v\n", addr, client.node.Identity)
-	}
 }
 
 // PrintNodeID will print the node's identity.
@@ -235,7 +226,10 @@ func NewIPFSclient(ctx context.Context) (*Client, error) {
 		Repo:      repo,
 		Routing:   libp2p.DHTOption,
 		ExtraOpts: map[string]bool{
-			"pubsub": true,
+			"pubsub":   true,
+			"psrouter": true,
+			"dht":      true,
+			"p2p":      true,
 		},
 	}
 

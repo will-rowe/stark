@@ -162,11 +162,11 @@ func (starkdb *Db) Set(ctx context.Context, record *Record) (*Record, error) {
 func (starkdb *Db) Dump(ctx context.Context, key *Key) (*DbMeta, error) {
 	starkdb.Lock()
 	defer starkdb.Unlock()
-
 	nodeAdd, err := starkdb.GetNodeAddr()
 	if err != nil {
 		return nil, err
 	}
+	starkdb.send2log("database dumped")
 	return &DbMeta{
 		Project:     starkdb.project,
 		Snapshot:    starkdb.snapshotCID,

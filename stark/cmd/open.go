@@ -74,7 +74,7 @@ func runOpen(projectName string) {
 	config.StartLog("open")
 
 	// get the database info
-	log.Info("fetching database...")
+	log.Info("fetching...")
 	projs := viper.GetStringMapString("Databases")
 	projectSnapshot, ok := projs[projectName]
 	if !ok {
@@ -96,6 +96,7 @@ func runOpen(projectName string) {
 	}()
 
 	// setup the db opts
+	log.Info("opening...")
 	dbOpts := []starkdb.DbOption{
 		starkdb.SetProject(projectName),
 		starkdb.WithLogging(msgChan),

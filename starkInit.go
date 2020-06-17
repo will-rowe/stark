@@ -153,9 +153,9 @@ func OpenDB(options ...DbOption) (*Db, func() error, error) {
 	if len(starkdb.peers) < DefaultMinBootstrappers {
 		return nil, nil, ErrBootstrappers
 	}
-	if starkdb.announcing && (len(starkdb.peers) <= len(starkipfs.DefaultBootstrappers)) {
-		return nil, nil, ErrNoPeers
-	}
+	//	if starkdb.announcing && (len(starkdb.peers) <= len(starkipfs.DefaultBootstrappers)) {
+	//		return nil, nil, ErrNoPeers
+	//	}
 
 	// init the IPFS client
 	client, err := starkipfs.NewIPFSclient(starkdb.ctx)

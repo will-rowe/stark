@@ -41,27 +41,14 @@ func (starkdb *Db) GetCIDs() map[string]string {
 	return starkdb.cidLookup
 }
 
-// GetNodeIdentity returns the PeerID of the underlying IPFS
-// node for the starkDB instance.
-func (starkdb *Db) GetNodeIdentity() (string, error) {
-	if !starkdb.isOnline() {
-		return "", ErrNodeOffline
-	}
-	id := starkdb.ipfsClient.PrintNodeID()
-	if len(id) == 0 {
-		return "", ErrNoPeerID
-	}
-	return id, nil
-}
-
 // GetNodeAddr returns the public address of the
 // underlying IPFS node for the starkDB
 // instance.
 func (starkdb *Db) GetNodeAddr() (string, error) {
-	nodeID, err := starkdb.GetNodeIdentity()
-	if err != nil {
-		return "", err
+	if !starkdb.isOnline() {
+		return "", ErrNodeOffline
 	}
+	nodeID := starkdb.ipfsClient.PrintNodeID()
 	add, err := starkdb.ipfsClient.GetPublicIPv4Addr()
 	if err != nil {
 		return "", err
