@@ -2,19 +2,9 @@ package config
 
 import (
 	log "github.com/sirupsen/logrus"
-	"github.com/spf13/viper"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
-
-// StartLog is used to pretty print a log
-// startup.
-func StartLog(cmd string) {
-	log.Info("--------------------STARK--------------------")
-	log.Info("starting...")
-	log.Infof("\tcommand: %v", cmd)
-	log.Infof("\tconfig: %v", viper.ConfigFileUsed())
-}
 
 // CheckResponseErr will check an error that was returned
 // by a gRPC server.

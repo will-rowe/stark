@@ -71,17 +71,14 @@ func init() {
 }
 
 func runOpen(projectName string) {
-	config.StartLog("open")
-
-	// get the database info
-	log.Info("fetching...")
+	log.Info("--------------------STARK--------------------")
+	log.Info("starting...")
+	log.Info("\tproject name: ", projectName)
+	log.Info("checking config...")
+	log.Infof("\tconfig: %v", viper.ConfigFileUsed())
 	projs := viper.GetStringMapString("Databases")
 	projectSnapshot, ok := projs[projectName]
-	if !ok {
-		log.Fatalf("no project found for: %v", projectName)
-		os.Exit(1)
-	}
-	log.Info("\tproject name: ", projectName)
+	log.Infof("\texisting project: %v", ok)
 	if len(projectSnapshot) != 0 {
 		log.Infof("\tsnapshot: %v", projectSnapshot)
 	}
@@ -96,7 +93,7 @@ func runOpen(projectName string) {
 	}()
 
 	// setup the db opts
-	log.Info("opening...")
+	log.Info("opening database...")
 	dbOpts := []starkdb.DbOption{
 		starkdb.SetProject(projectName),
 		starkdb.WithLogging(msgChan),
@@ -120,7 +117,7 @@ func runOpen(projectName string) {
 		log.Info("\tusing listen")
 	}
 	if len(*peers) != 0 {
-		log.Info("\tadding peers")
+		log.Info("\tusing extra peers")
 		dbOpts = append(dbOpts, starkdb.WithPeers(*peers))
 	}
 
