@@ -99,13 +99,13 @@ func (starkdb *Db) Set(ctx context.Context, record *Record) (*Record, error) {
 	}
 
 	// create DAG node in IPFS for Record data
-	cid, err := starkdb.ipfsClient.DagPut(starkdb.ctx, jsonData, starkdb.pinning)
+	cid, err := starkdb.ipfsClient.DagPut(ctx, jsonData, starkdb.pinning)
 	if err != nil {
 		return nil, err
 	}
 
 	// link the record CID to the project directory and take a snapshot
-	snapshotUpdate, err := starkdb.ipfsClient.AddLink(starkdb.ctx, starkdb.snapshotCID, cid, key)
+	snapshotUpdate, err := starkdb.ipfsClient.AddLink(ctx, starkdb.snapshotCID, cid, key)
 	if err != nil {
 		return nil, errors.Wrap(err, ErrSnapshotUpdate.Error())
 	}
