@@ -72,3 +72,15 @@ func IsPublicIPv4(ip net.IP) bool {
 	}
 	return true
 }
+
+// CheckSTDIN is a function to check that STDIN can be read.
+func CheckSTDIN() error {
+	stat, err := os.Stdin.Stat()
+	if err != nil {
+		return fmt.Errorf("error with STDIN")
+	}
+	if (stat.Mode() & os.ModeNamedPipe) == 0 {
+		return fmt.Errorf("no STDIN found")
+	}
+	return nil
+}

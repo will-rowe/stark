@@ -62,10 +62,10 @@ var openCmd = &cobra.Command{
 }
 
 func init() {
-	announce = openCmd.Flags().BoolP("withAnnounce", "a", false, "Announce all records over PubSub as they are added to the open database.")
-	encrypt = openCmd.Flags().BoolP("withEncrypt", "e", false, fmt.Sprintf("Encrypt record fields using the password stored in the %v env variable.", starkdb.DefaultStarkEnvVariable))
-	listen = openCmd.Flags().BoolP("withListen", "l", false, "Listen for records being announced over PubSub and make a copy in the open database.")
-	pinataInterval = openCmd.Flags().IntP("withPinata", "p", 0, fmt.Sprintf("Sets Pinata interval for pinning db contents - requires %v and %v to be set. (<1 == Pinata disabled)", starkdb.DefaultPinataAPIkey, starkdb.DefaultPinataSecretKey))
+	announce = openCmd.Flags().BoolP("withAnnounce", "a", false, "Announce all records over PubSub as they are added to the open database")
+	encrypt = openCmd.Flags().BoolP("withEncrypt", "e", false, fmt.Sprintf("Encrypt record fields using the password stored in the %v env variable", starkdb.DefaultStarkEnvVariable))
+	listen = openCmd.Flags().BoolP("withListen", "l", false, "Listen for records being announced over PubSub and make a copy in the open database")
+	pinataInterval = openCmd.Flags().IntP("withPinata", "p", 0, fmt.Sprintf("Sets Pinata interval for pinning db contents - requires %v and %v to be set (<1 == Pinata disabled)", starkdb.DefaultPinataAPIkey, starkdb.DefaultPinataSecretKey))
 	peers = openCmd.Flags().StringSliceP("withPeers", "x", nil, "List of peer addresses to connect the database with (in addition to default bootstrappers)")
 	rootCmd.AddCommand(openCmd)
 }
