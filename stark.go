@@ -106,6 +106,9 @@ var (
 	// ErrNoSub indicates the IPFS node is not registered for PubSub.
 	ErrNoSub = fmt.Errorf("IPFS node has no topic registered for PubSub")
 
+	// ErrNoPeers indicates no peers were proided but announcing via PubSub was requested.
+	ErrNoPeers = fmt.Errorf("no peers given but PubSub announcements requested, chances of messages being received is low")
+
 	// ErrPinataAPI indicates the Pinata API can't be reached.
 	ErrPinataAPI = func(err error) error {
 		return fmt.Errorf("failed to reach Pinata API: %w", err)
@@ -137,7 +140,7 @@ type Db struct {
 
 	// user-defined settings
 	project        string           // the project which the database instance is managing
-	bootstrappers  []string         // list of addresses to use for IPFS peer discovery
+	peers          []string         // list of addresses to use for IPFS peer discovery
 	snapshotCID    string           // the optional snapshot CID provided during database opening
 	pinning        bool             // if true, IPFS IO will be done with pinning
 	pinataInterval int              // the number of set operations permitted between pinata pinning (-1 = no pinata pinning)

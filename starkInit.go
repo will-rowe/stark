@@ -37,15 +37,12 @@ func SetSnapshotCID(path string) DbOption {
 	}
 }
 
-// SetBootstrappers is an option setter for the OpenDB
-// constructor that sets the list of bootstrapper nodes
-// to use for IPFS peer discovery.
-//
-// Note: a default list of bootstrappers will be used
-// if this option setter is omitted.
-func SetBootstrappers(bootstrapperList []string) DbOption {
+// WithPeers is an option setter for the OpenDB
+// constructor that adds a list of nodes to the
+// default IPFS bootstrappers.
+func WithPeers(nodeList []string) DbOption {
 	return func(starkdb *Db) error {
-		return starkdb.setBootstrappers(bootstrapperList)
+		return starkdb.setNodes(nodeList)
 	}
 }
 
@@ -136,7 +133,7 @@ func OpenDB(options ...DbOption) (*Db, func() error, error) {
 		pinning:        true,
 		announcing:     false,
 		cipherKey:      nil,
-		bootstrappers:  starkipfs.DefaultBootstrappers,
+		peers:          starkipfs.DefaultBootstrappers,
 		pinataInterval: 0,
 		sessionEntries: 0,
 	}
@@ -153,6 +150,12 @@ func OpenDB(options ...DbOption) (*Db, func() error, error) {
 	if !starkdb.pinning && (starkdb.pinataInterval > 0) {
 		return nil, nil, ErrPinataOpt
 	}
+	if len(starkdb.peers) < DefaultMinBootstrappers {
+		return nil, nil, ErrBootstrappers
+	}
+	if starkdb.announcing && (len(starkdb.peers) <= len(starkipfs.DefaultBootstrappers)) {
+		return nil, nil, ErrNoPeers
+	}
 
 	// init the IPFS client
 	client, err := starkipfs.NewIPFSclient(starkdb.ctx)
@@ -162,7 +165,7 @@ func OpenDB(options ...DbOption) (*Db, func() error, error) {
 	starkdb.ipfsClient = client
 
 	// bootstrap the IPFS node
-	go starkdb.ipfsClient.Connect(starkdb.ctx, starkdb.bootstrappers, starkdb.loggingChan)
+	go starkdb.ipfsClient.Connect(starkdb.ctx, starkdb.peers, starkdb.loggingChan)
 
 	// if no base CID was provided, initialise a snapshot
 	if len(starkdb.snapshotCID) == 0 {
@@ -232,13 +235,11 @@ func (starkdb *Db) setSnapshotCID(cid string) error {
 	return nil
 }
 
-// setBootstrappers will set the bootstrapper nodes
-// to use for IPFS peer discovery.
-func (starkdb *Db) setBootstrappers(nodeList []string) error {
-	if len(nodeList) < DefaultMinBootstrappers {
-		return ErrBootstrappers
-	}
-	starkdb.bootstrappers = nodeList
+// setNodes will add nodes to the list of bootstrapper
+// nodes to use for IPFS peer discovery.
+func (starkdb *Db) setNodes(nodeList []string) error {
+	// TODO: add some checking
+	starkdb.peers = append(starkdb.peers, nodeList...)
 	return nil
 }
 

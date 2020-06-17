@@ -176,10 +176,9 @@ func TestIpfsPubSub(t *testing.T) {
 
 // TestNewDB will check database initialisation and set/get operation.
 func TestNewDB(t *testing.T) {
-	numBootstrappers := 3
 
 	// init the starkDB
-	starkdb, teardown, err := OpenDB(SetProject(testProject), SetBootstrappers(starkipfs.DefaultBootstrappers[:numBootstrappers]))
+	starkdb, teardown, err := OpenDB(SetProject(testProject))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -187,9 +186,6 @@ func TestNewDB(t *testing.T) {
 	// check the setup options propagated
 	if starkdb.project != strings.ReplaceAll(testProject, " ", "_") {
 		t.Fatal("starkDB's project does not match the provided one")
-	}
-	if len(starkdb.bootstrappers) != numBootstrappers {
-		t.Fatalf("starkDB does not have expected number of bootstrappers listed: %d", len(starkdb.bootstrappers))
 	}
 	if !starkdb.pinning {
 		t.Fatal("IPFS node was told to pin but is not set for pinning")
