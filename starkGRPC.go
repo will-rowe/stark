@@ -171,6 +171,7 @@ func (starkdb *Db) Dump(ctx context.Context, key *Key) (*DbMeta, error) {
 		Project:     starkdb.project,
 		Snapshot:    starkdb.snapshotCID,
 		NodeAddress: nodeAdd,
+		Peers:       starkdb.peers,
 		Pinning:     starkdb.pinning,
 		Announcing:  starkdb.announcing,
 		CurrEntries: int32(starkdb.currentNumEntries),

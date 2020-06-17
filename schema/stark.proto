@@ -27,6 +27,7 @@ message DbMeta {
     string Project = 1;             // project name for the current database
     string Snapshot = 2;            // CID for the current database state
     string NodeAddress = 3;         // the IPFS node address for the database
+    repeated string Peers = 4;      // the IPFS peers in the swarm
 
 	bool Pinning = 5;               // if true, database is pinning entries
 	bool Announcing = 6;            // if true, database is announcing entries on PubSub
