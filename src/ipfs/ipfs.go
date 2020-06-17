@@ -156,6 +156,19 @@ func (client *Client) GetPublicIPv4Addr() (string, error) {
 	return "", fmt.Errorf("no public IPv4 address was found for IPFS node")
 }
 
+// GetPeers will return currently connected peers.
+func (client *Client) GetPeers(ctx context.Context) ([]string, error) {
+	cons, err := client.ipfs.Swarm().Peers(ctx)
+	if err != nil {
+		return nil, err
+	}
+	connectedPeers := make([]string, len(cons))
+	for i, con := range cons {
+		connectedPeers[i] = fmt.Sprintf("%s/ipfs/%s", con.Address(), con.ID())
+	}
+	return connectedPeers, nil
+}
+
 // Online will return true if the node is online.
 func (client *Client) Online() bool {
 	return client.node.IsOnline

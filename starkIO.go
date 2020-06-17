@@ -56,6 +56,19 @@ func (starkdb *Db) GetNodeAddr() (string, error) {
 	return fmt.Sprintf("%s/p2p/%s", add, nodeID), nil
 }
 
+// GetConnectedPeers returns the addresses of the
+// currently connected IPFS peers.
+func (starkdb *Db) GetConnectedPeers() ([]string, error) {
+	if !starkdb.isOnline() {
+		return nil, ErrNodeOffline
+	}
+	connectPeers, err := starkdb.ipfsClient.GetPeers(starkdb.ctx)
+	if err != nil {
+		return nil, err
+	}
+	return connectPeers, nil
+}
+
 // PinataPublish will issue an API call to the pinata
 // pinByHash endpoint and pin the current database
 // instance.

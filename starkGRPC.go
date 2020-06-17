@@ -166,12 +166,16 @@ func (starkdb *Db) Dump(ctx context.Context, key *Key) (*DbMeta, error) {
 	if err != nil {
 		return nil, err
 	}
+	peerAdds, err := starkdb.GetConnectedPeers()
+	if err != nil {
+		return nil, err
+	}
 	starkdb.send2log("database dumped")
 	return &DbMeta{
 		Project:     starkdb.project,
 		Snapshot:    starkdb.snapshotCID,
 		NodeAddress: nodeAdd,
-		Peers:       starkdb.peers,
+		Peers:       peerAdds,
 		Pinning:     starkdb.pinning,
 		Announcing:  starkdb.announcing,
 		CurrEntries: int32(starkdb.currentNumEntries),

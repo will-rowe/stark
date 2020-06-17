@@ -58,7 +58,7 @@ func init() {
 func runDump() {
 
 	// get context
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 
 	// connect to the server
