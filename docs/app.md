@@ -1,16 +1,9 @@
-# The STARK app
-
-## Installing
-
-### Conda
-
-### Release
-
-### Source
+# STARK as an app
 
 ## Commands
 
 - `stark init <project>` - Create a new database for a project.
-- `stark add <project> <key>` - Add a key to a project.
-- `stark get <project> <key>` - Get a record from a project.
-- `stark dump <project>` - Dump the metadata from a project.
+- `stark open <project> options...` - Open a database for a project.
+- `stark add <key>` - Add a key to an open database.
+- `stark get <key>` - Get a record from an open database.
+- `stark dump` - Dump the metadata from an open database.

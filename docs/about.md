@@ -1,13 +1,4 @@
-<div align="center">
-  <img src="https://raw.githubusercontent.com/will-rowe/stark/master/docs/stark-logo-with-text.png" alt="stark-logo" width="250">
-  <h3>Sequence Transmission And Record Keeping</h3>
-  <hr>
-  <a href="https://travis-ci.org/will-rowe/stark"><img src="https://travis-ci.org/will-rowe/stark.svg?branch=master" alt="travis"></a>
-  <a href="https://godoc.org/github.com/will-rowe/stark"><img src="https://godoc.org/github.com/will-rowe/stark?status.svg" alt="GoDoc"></a>
-  <a href="https://goreportcard.com/report/github.com/will-rowe/stark"><img src="https://goreportcard.com/badge/github.com/will-rowe/stark" alt="goreportcard"></a>
-  <a href="https://codecov.io/gh/will-rowe/stark"><img src="https://codecov.io/gh/will-rowe/stark/branch/master/graph/badge.svg" alt="codecov"></a>
-  <a href='https://stark-docs.readthedocs.io/en/latest/?badge=latest'><img src='https://readthedocs.org/projects/stark-docs/badge/?version=latest' alt='Documentation Status'></a>
-</div>
+# About
 
 ## Overview
 
@@ -35,20 +26,3 @@
 - `records` are a data structure used to represent a Nanopore sequencing run (but can be hijacked and extended to be more generic or to represent Samples and Libraries)
 - `records` are defined in [protobuf](https://developers.google.com/protocol-buffers) format (which is compiled with Go bindings using [this makefile](./schema/Makefile))
 - currently, `records` are serialised to JSON for IPFS transactions
-
-## Installation
-
-### Requirements
-
-Both the Go package and the Command Line Utility require `go-ipfs`. See download and install instructions [here](https://docs.ipfs.io/guides/guides/install/).
-
-### Installing the package and app using Go
-
-```sh
-export GO111MODULE=on
-go get -v github.com/will-rowe/stark/...@master
-```
-
-## Documentation
-
-View the [Go Documentation](https://pkg.go.dev/github.com/will-rowe/stark) site for package documentation or visit [readthedocs](https://stark-docs.readthedocs.io/en/latest/) pages for more information on the app.

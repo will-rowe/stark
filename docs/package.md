@@ -4,14 +4,6 @@ View the [Go Documentation](https://pkg.go.dev/github.com/will-rowe/stark) site 
 
 This page will document some examples.
 
-## Installing
-
-Just `go get` the package:
-
-```
-go get -d github.com/will-rowe/stark
-```
-
 ## Usage example
 
 ```go

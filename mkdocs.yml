@@ -3,7 +3,9 @@ repo_url: https://github.com/will-rowe/stark
 site_author: Will Rowe
 nav:
   - Home: index.md
-  - The STARK app: app.md
+  - About: about.md
+  - Installation: installation.md
+  - STARK as an app: app.md
   - STARK as a package: package.md
   - FAQ: faq.md
 theme: readthedocs
