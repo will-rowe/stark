@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/pkg/errors"
 
@@ -153,9 +154,6 @@ func OpenDB(options ...DbOption) (*Db, func() error, error) {
 	if len(starkdb.peers) < DefaultMinBootstrappers {
 		return nil, nil, ErrBootstrappers
 	}
-	//	if starkdb.announcing && (len(starkdb.peers) <= len(starkipfs.DefaultBootstrappers)) {
-	//		return nil, nil, ErrNoPeers
-	//	}
 
 	// init the IPFS client
 	client, err := starkipfs.NewIPFSclient(starkdb.ctx)
@@ -177,7 +175,9 @@ func OpenDB(options ...DbOption) (*Db, func() error, error) {
 	} else {
 
 		// populate the lookup map with the existing snapshot
-		links, err := starkdb.ipfsClient.GetNodeLinks(starkdb.ctx, starkdb.snapshotCID)
+		ctx2, cancel2 := context.WithTimeout(starkdb.ctx, 2*time.Second)
+		defer cancel2()
+		links, err := starkdb.ipfsClient.GetNodeLinks(ctx2, starkdb.snapshotCID)
 		if err != nil {
 			return nil, nil, errors.Wrap(err, ErrInvalidSnapshot.Error())
 		}
