@@ -23,7 +23,7 @@ var (
 	testSnapshot    = ""
 	testProject     = "test_project"
 	testAltProject  = "snapshotted_project"
-	testKey         = "test entry"
+	testKey         = "test-entry"
 	testDescription = "this is a test record"
 )
 
