@@ -29,6 +29,15 @@ import (
 
 const (
 
+	// major is the major version number
+	major = 0
+
+	// minor is the minor version number
+	minor = 1
+
+	// patch is the patch version number
+	patch = 0
+
 	// DefaultBufferSize is the maximum number of records stored in channels.
 	DefaultBufferSize = 42
 

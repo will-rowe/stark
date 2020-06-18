@@ -73,7 +73,8 @@ func init() {
 func runOpen(projectName string) {
 	log.Info("--------------------STARK--------------------")
 	log.Info("starting...")
-	log.Info("\tproject name: ", projectName)
+	log.Infof("\tstark version: %v", stark.GetVersion())
+	log.Infof("\tproject name: %v", projectName)
 	log.Info("checking config...")
 	log.Infof("\tconfig: %v", viper.ConfigFileUsed())
 	projs := viper.GetStringMapString("Databases")

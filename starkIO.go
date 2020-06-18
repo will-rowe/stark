@@ -195,6 +195,19 @@ func (starkdb *Db) Delete(key string) error {
 	return nil
 }
 
+// GetVersion returns the full version string
+// for the current stark package.
+func GetVersion() string {
+	return fmt.Sprintf("%d.%d.%d", major, minor, patch)
+}
+
+// GetBaseVersion returns the major minor
+// version string for the current stark
+// package.
+func GetBaseVersion() string {
+	return fmt.Sprintf("%d.%d", major, minor)
+}
+
 // getRecordFromCID is a helper method that collects a Record from
 // the IPFS using its CID string.
 func (starkdb *Db) getRecordFromCID(cid string) (*Record, error) {
