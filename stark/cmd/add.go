@@ -26,7 +26,6 @@ import (
 	"bufio"
 	"context"
 	"encoding/json"
-	"fmt"
 	"io/ioutil"
 	"os"
 	"strings"
@@ -43,23 +42,21 @@ import (
 )
 
 var (
-	inputFile   *string
-	useStdin    *bool
-	useProto    *bool
-	printRecord *bool
+	inputFile *string
+	useProto  *bool
 )
 
 // addCmd represents the add command
 var addCmd = &cobra.Command{
 	Use:   "add <key>",
 	Short: "Add a record to an open database",
-	Long: `Add a record to an open database using the
-	record alias as the database key.
+	Long: `Adds a Record to an open database. It will use
+	th Record's alias as the key in the database.
 	
 	This command will read from an input file if provided,
-	or STDIN if the flag is set. Otherwise, it will use
-	an interactive prompt to populate a Record before
-	adding it to the open database.`,
+	otherwise it will check STDIN. If no Record is found,
+	it will use an interactive prompt to populate a new 
+	Record before adding it to the open database.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		runAdd()
 	},
@@ -67,9 +64,7 @@ var addCmd = &cobra.Command{
 
 func init() {
 	inputFile = addCmd.Flags().StringP("inputFile", "f", "", "File containing Record")
-	useStdin = addCmd.Flags().Bool("useStdin", false, "Read record from STDIN")
 	useProto = addCmd.Flags().Bool("useProto", false, "Input Record is in Protobuf format, not JSON")
-	printRecord = addCmd.Flags().BoolP("printRecord", "P", false, "Print the Record once it has been added to the database")
 	rootCmd.AddCommand(addCmd)
 }
 
@@ -88,11 +83,9 @@ func runAdd() {
 		if err != nil {
 			log.Fatal(err)
 		}
-	} else if *useStdin {
-		err := helpers.CheckSTDIN()
-		if err != nil {
-			log.Fatal(err)
-		}
+	} else if helpers.StdinAvailable() {
+		log.Info("collecting Record from STDIN...")
+		var err error
 		data, err = ioutil.ReadAll(os.Stdin)
 		if err != nil {
 			log.Fatal(err)
@@ -112,13 +105,14 @@ func runAdd() {
 			}
 		}
 	} else {
-		fmt.Printf("no Record provided, collecting data interactively\nenter record description:\n")
+		log.Info("no Record provided, collecting data interactively...")
+		log.Info("enter Record description:")
 		descp, err := bufio.NewReader(os.Stdin).ReadString('\n')
 		if err != nil {
 			log.Fatal(err)
 		}
 		descp = strings.Replace(descp, "\n", "", -1)
-		fmt.Println("enter record alias (key):")
+		log.Info("enter Record alias (key):")
 		key, err := bufio.NewReader(os.Stdin).ReadString('\n')
 		if err != nil {
 			log.Fatal(err)
@@ -128,7 +122,7 @@ func runAdd() {
 		if err != nil {
 			log.Fatal(err)
 		}
-		fmt.Println("record created, proceeding to add")
+		log.Info("new Record created, proceeding to add")
 	}
 
 	// get context
@@ -138,7 +132,7 @@ func runAdd() {
 	// connect to the server
 	conn, err := grpc.DialContext(ctx, viper.GetString("Address"), grpc.WithInsecure(), grpc.WithBlock())
 	if err != nil {
-		log.Fatalf("could not connect to a database: %v", err)
+		log.Fatalf("could not connect to a stark database: %v", err)
 	}
 	defer conn.Close()
 	client := starkdb.NewStarkDbClient(conn)
@@ -146,7 +140,8 @@ func runAdd() {
 	// make a Set request
 	rec, err := client.Set(ctx, record)
 	config.CheckResponseErr(err)
-	if *printRecord {
-		fmt.Println(rec)
-	}
+
+	// print the key and cid
+	log.Info("added Record to database:")
+	log.Infof("\t%v -> %v\n", rec.GetAlias(), rec.GetPreviousCID())
 }
