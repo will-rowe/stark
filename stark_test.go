@@ -213,7 +213,7 @@ func TestNewDB(t *testing.T) {
 	if rec == nil {
 		t.Fatal("did not receive record from Set method")
 	}
-	if rec.GetAlias() != testKey {
+	if rec.GetAlias() != strings.ReplaceAll(testKey, " ", "_") {
 		t.Fatal("received record from Set method does not contain correct fields")
 	}
 

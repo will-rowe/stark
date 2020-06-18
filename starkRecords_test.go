@@ -1,6 +1,7 @@
 package stark
 
 import (
+	"strings"
 	"testing"
 
 	starkcrypto "github.com/will-rowe/stark/src/crypto"
@@ -15,7 +16,7 @@ func TestRecord(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if rec.GetAlias() != testAlias {
+	if rec.GetAlias() != strings.ReplaceAll(testAlias, " ", "_") {
 		t.Fatal("did not set alias for record")
 	}
 	originalUUID := rec.GetUuid()
