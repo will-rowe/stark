@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"strings"
 
 	"github.com/gogo/protobuf/jsonpb"
 	"github.com/golang/protobuf/ptypes"
@@ -15,6 +16,10 @@ import (
 
 // SetAlias is an option setter for the NewRecord constructor
 // that sets the human readable label of a Record.
+// Spaces are replaced with underscores.
+//
+// Note: the Record's alias is used as the key in the
+// StarkDB.
 func SetAlias(alias string) RecordOption {
 	return func(x *Record) error {
 		return x.setAlias(alias)
@@ -183,6 +188,7 @@ func (x *Record) GetLastUpdatedTimestamp() *timestamp.Timestamp {
 }
 
 func (x *Record) setAlias(alias string) error {
+	alias = strings.ReplaceAll(alias, " ", "_")
 	if len(alias) != 0 {
 		x.Alias = alias
 		x.AddComment("alias updated.")
