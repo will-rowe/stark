@@ -8,8 +8,8 @@ Welcome to the documentation for STARK.
 
 # Contents
 
-- [about](./about.md)
-- [installation](./installing.md)
+- [About](./about.md)
+- [Installation](./installing.md)
 - [STARK as an app](./app.md)
 - [STARK as a package](./package.md)
 - [FAQ](./faq.md)

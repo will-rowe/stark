@@ -11,7 +11,7 @@
 
 ## Overview
 
-**stark** is an IPFS-backed database for recording and distributing sequencing data. It is both a library and a Command Line Utility for running and interacting with **stark databases**. Features include:
+**stark** is an IPFS-backed database for recording and distributing sequencing data. It is both an application and a Go Package for running and interacting with **stark databases**. Features include:
 
 - snapshot, sync and share entire databases over the IPFS
 - use PubSub messaging to share and collect data records as they are created
@@ -20,35 +20,54 @@
 - encrypt record fields
 - submit databases to [pinata](https://pinata.cloud/) pinning service for easy backup and distribution
 
-### The database
-
-- **stark databases** track, update and share sequence `records`
-- a database is aliased by a `project name` which groups the `records`
-- `projects` and `records` are DAG nodes in the [IPFS](https://ipfs.io/)
-- DAG `links` are created between `records` and the `projects` that use them
-- `records` and `projects` are pointed to by `content identifiers (CIDs)`
-- the `CIDs` change when the content they point to is altered, so databases track them locally using `keys`
-- databases are re-opened and shared using the `project` `CID` (termed a `snapshot`)
-
-### Records
-
-- `records` are a data structure used to represent a Nanopore sequencing run (but can be hijacked and extended to be more generic or to represent Samples and Libraries)
-- `records` are defined in [protobuf](https://developers.google.com/protocol-buffers) format (which is compiled with Go bindings using [this makefile](./schema/Makefile))
-- currently, `records` are serialised to JSON for IPFS transactions
-
-## Installation
+## Quickstart
 
 ### Requirements
 
-Both the Go package and the Command Line Utility require `go-ipfs`. See download and install instructions [here](https://docs.ipfs.io/guides/guides/install/).
+Both the app and the Go package require IPFS (specifically, the Go implementation: `go-ipfs`). See download and install instructions [here](https://docs.ipfs.io/guides/guides/install/).
 
-### Installing the package and app using Go
+Then make sure you have an IPFS repository initialised on your machine.
+
+### Install
+
+The easiest way to install is using Go (v1.14):
 
 ```sh
 export GO111MODULE=on
-go get -v github.com/will-rowe/stark/...@master
+release=0.0.0
+go get -v github.com/will-rowe/stark/...@$(release)
+```
+
+### Usage
+
+For using the Go package, see the [Go documentation](https://pkg.go.dev/github.com/will-rowe/stark) and the [examples](https://stark-docs.readthedocs.io/en/latest/package/#usage-example).
+
+The following are some basic commands for using the **stark** app:
+
+* Use the `open` subcommand to open a database and serve it via [gRPC](https://grpc.io/docs/what-is-grpc/introduction/):
+
+```
+stark open my-project
+```
+
+* Use the `add` subcommand to add a [Record](https://stark-docs.readthedocs.io/en/latest/about/#records) to an open database:
+
+```
+stark add -f record.json
+```
+
+* Or use the `add` subcommand with no arguments to create a Record interactively and then add it: 
+
+```
+stark add
+```
+
+* Use the `get` subcommand to retrieve a Record from an open database:
+
+```
+stark get my-record-key -H > record.json
 ```
 
 ## Documentation
 
-View the [Go Documentation](https://pkg.go.dev/github.com/will-rowe/stark) site for package documentation or visit [readthedocs](https://stark-docs.readthedocs.io/en/latest/) pages for more information on the app.
+Visit the [stark documentation site](https://stark-docs.readthedocs.io/en/latest/) and the [Go package documentation](https://pkg.go.dev/github.com/will-rowe/stark) for more information.

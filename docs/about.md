@@ -2,7 +2,7 @@
 
 ## Overview
 
-**stark** is an IPFS-backed database for recording and distributing sequencing data. It is both a library and a Command Line Utility for running and interacting with **stark databases**. Features include:
+**stark** is an IPFS-backed database for recording and distributing sequencing data. It is both an application and a Go package for running and interacting with **stark databases**. Features include:
 
 - snapshot, sync and share entire databases over the IPFS
 - use PubSub messaging to share and collect data records as they are created

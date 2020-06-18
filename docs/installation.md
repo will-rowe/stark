@@ -2,9 +2,11 @@
 
 ### Requirements
 
-Both the package and the app require `go-ipfs`. See download and install instructions [here](https://docs.ipfs.io/guides/guides/install/).
+Both the package and the app require IPFS (specifically, the Go implementation: `go-ipfs`). See download and install instructions [here](https://docs.ipfs.io/guides/guides/install/).
 
-### Install
+Once you have IPFS installed, make sure that you have a repository initialised (run `ipfs init` on the command line).
+
+### Installing STARK
 
 #### option 1: use Go
 
@@ -27,7 +29,7 @@ go get -v github.com/will-rowe/stark/...@master
 
 #### option 2: use a release
 
-Download a release for your platform from the GitHub [releases page](https://github.com/will-rowe/stark/releases).
+If you just want the app, download a release for your platform from the GitHub [releases page](https://github.com/will-rowe/stark/releases).
 
 #### option 3: use Conda
 
