@@ -17,7 +17,7 @@ Both the app and the package can be installed at the same time using the Go tool
 ```sh
 export GO111MODULE=on
 release=0.0.1
-go get -v github.com/will-rowe/stark/...@$(release)
+go get -v github.com/will-rowe/stark/...@${release}
 ```
 
 - To install the latest master:

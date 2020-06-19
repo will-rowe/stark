@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="https://raw.githubusercontent.com/will-rowe/stark/master/docs/stark-logo-with-text.png" alt="stark-logo" width="250">
+  <img src="https://raw.githubusercontent.com/will-rowe/stark/master/docs/img/stark-logo-with-text.png" alt="stark-logo" width="250">
   <h3>Sequence Transmission And Record Keeping</h3>
   <hr>
   <a href="https://travis-ci.org/will-rowe/stark"><img src="https://travis-ci.org/will-rowe/stark.svg?branch=master" alt="travis"></a>
@@ -35,7 +35,7 @@ The easiest way to install is using Go (v1.14):
 ```sh
 export GO111MODULE=on
 release=0.0.0
-go get -v github.com/will-rowe/stark/...@$(release)
+go get -v github.com/will-rowe/stark/...@${release}
 ```
 
 ### Usage

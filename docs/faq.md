@@ -1,9 +1,39 @@
 # FAQ
 
-- each instance of a database is linked to a project, re-opening a database with the same project name will edit that database
-- the `OpenDB` and `NewRecord` consructor functions use functional options to set struct values - this is in an effort to keep the API stable (see [here](https://dave.cheney.net/2014/10/17/functional-options-for-friendly-apis))
-- if a record is retrieved from the database and updated, you need to then re-add it to the database. In other words, a **stark database** only records the most recent version of a record commited to the IPFS
-- records have a history, which can be used to rollback changes to other version of the record that entered the IPFS
-- even though schema is in protobuf, most of the time it's marshaling to JSON to pass stuff around
-- Record methods are not threadsafe - the database passes around copies of Records so this isn't much of an issue atm. The idea is that users of the library will end up turning Record data into something more usable and won't operate on them after initial Set/Gets
-- Encryption is a WIP, currently only a Record's UUID will be encrypted as a proof of functionality. Encrypted Records are decrypted on retrieval, but this will fail if the database instance requesting them doesn't have the correct password.
+## can anyone access my data?
+
+Yes. Anything put into a stark database will be available on the public IPFS network. However, you could configure your own private network if you wanted to.
+
+stark does have an option to encrypt record fields. The record itself will still be accessible on the public network but it will require a passphrase to decrypt the fields.
+
+Note: Encryption is a WIP. Currently only a Record's UUID will be encrypted as a proof of functionality. Encrypted Records are decrypted on retrieval, but this will fail if the database instance requesting them doesn't have the correct password.
+
+## is my data persistent?
+
+Yes. stark pins the records it adds by default, which means that the node you are using to run the database should delete it during garbage collection (see [here](https://docs.ipfs.io/concepts/persistence/)). If no other nodes request the records you add to a database on your node, the records will only exist on your node. This runs the risk that they could be deleted (e.g. if you wipe your nodes storage).
+
+To be safe, and to speed up sharing, you can use the `withPinata` option to use the [pinata API](https://pinata.cloud/) and pin your data to their nodes (**requires a Pinata account**).
+
+You can deactivate pinning (`withNoPinning`), which means records added to a stark database can be collected by the IPFS garbage collector, although this sort of defeats the point.
+
+## can I use the IFPS tool to interact with records and projects?
+
+Yes. Here are some examples:
+
+* to list records in a project
+
+```
+ipfs ls <project cid>
+```
+
+* to get a record from a project:
+
+```
+ipfs dag get <project cid>/<record alias>
+```
+
+* to get a field from a record:
+
+```
+ipfs dag get <project cid>/<record alias>/<field>
+```
