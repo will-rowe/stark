@@ -36,7 +36,7 @@ const (
 	minor = 1
 
 	// patch is the patch version number
-	patch = 0
+	patch = 1
 
 	// DefaultBufferSize is the maximum number of records stored in channels.
 	DefaultBufferSize = 42
