@@ -70,7 +70,7 @@ func runDump() {
 	c := stark.NewStarkDbClient(conn)
 
 	// make a Dump request
-	dump, err := c.Dump(ctx, &stark.Key{})
+	dump, err := c.Dump(ctx, nil)
 	config.CheckResponseErr(err)
 
 	// print the json

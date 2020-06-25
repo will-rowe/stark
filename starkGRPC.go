@@ -10,19 +10,20 @@ import (
 	starkhelpers "github.com/will-rowe/stark/src/helpers"
 	codes "google.golang.org/grpc/codes"
 	status "google.golang.org/grpc/status"
+	"google.golang.org/protobuf/types/known/emptypb"
 )
 
 // Get will retrieve a copy of a Record
 // from the starkDB using the provided
 // lookup key.
-func (starkdb *Db) Get(ctx context.Context, key *Key) (*Record, error) {
+func (starkdb *Db) Get(ctx context.Context, key *Key) (*Response, error) {
 	starkdb.Lock()
 	defer starkdb.Unlock()
 
 	// check the local keystore for the provided key
-	cid, ok := starkdb.cidLookup[key.GetId()]
+	cid, ok := starkdb.cidLookup[key.GetKey()]
 	if !ok {
-		return nil, status.Error(codes.NotFound, fmt.Sprintf("no Record in database for key: %v", key.GetId()))
+		return nil, status.Error(codes.NotFound, fmt.Sprintf("no Record in database for key: %v", key.GetKey()))
 	}
 
 	// use the helper method to retrieve the Record
@@ -31,28 +32,31 @@ func (starkdb *Db) Get(ctx context.Context, key *Key) (*Record, error) {
 		return nil, err
 	}
 
-	starkdb.send2log(fmt.Sprintf("record retrieved: %v->%v", key.GetId(), cid))
-	return record, nil
+	starkdb.send2log(fmt.Sprintf("record retrieved: %v->%v", key.GetKey(), cid))
+	return &Response{Success: true, Record: record}, nil
 }
 
-// Set will add a copy of a Record to the
-// starkDB, using the Record Alias as a
-// lookup key.
+// Set will add a a KeyRecordPair to the
+// starkDB.
 //
 // This method will add comments to the
 // Record's history before adding it to the
 // IPFS.
 //
-// It will return a pointer to a copy of the
-// Record that was added to the starkDB,
-// which contains the updated Record history
-// and the CID for the Record in the IPFS.
-func (starkdb *Db) Set(ctx context.Context, record *Record) (*Record, error) {
+// It will return a reponse, which contains a
+// copy of the Record that was added to the
+// starkDB (which contains the updated Record
+// history and the CID for the Record in the
+// IPFS).
+func (starkdb *Db) Set(ctx context.Context, krp *KeyRecordPair) (*Response, error) {
 	starkdb.Lock()
 	defer starkdb.Unlock()
 
-	// use the record alias as the lookup key
-	key := record.GetAlias()
+	// check the provided key and value
+	key := krp.GetKey()
+	record := krp.GetRecord()
+
+	// check the key
 	if len(key) == 0 {
 		return nil, ErrNoKey
 	}
@@ -153,13 +157,13 @@ func (starkdb *Db) Set(ctx context.Context, record *Record) (*Record, error) {
 
 	// add the CID to the record and return
 	record.PreviousCID = cid
-	return record, nil
+	return &Response{Success: true, Record: record}, nil
 }
 
 // Dump returns the metadata from a starkDB instance.
 //
 // Note: input key is currently unused.
-func (starkdb *Db) Dump(ctx context.Context, key *Key) (*DbMeta, error) {
+func (starkdb *Db) Dump(ctx context.Context, empty *emptypb.Empty) (*DbMeta, error) {
 	starkdb.Lock()
 	defer starkdb.Unlock()
 	nodeAdd, err := starkdb.GetNodeAddr()

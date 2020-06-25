@@ -43,7 +43,7 @@ var (
 
 // getCmd represents the get command
 var getCmd = &cobra.Command{
-	Use:   "get",
+	Use:   "get <key>",
 	Short: "Get a record from an open database",
 	Long:  `Get a record from an open database.`,
 	Args:  cobra.ExactArgs(1),
@@ -73,7 +73,7 @@ func runGet(key string) {
 	c := stark.NewStarkDbClient(conn)
 
 	// make a Get request
-	record, err := c.Get(ctx, &stark.Key{Id: key})
+	record, err := c.Get(ctx, &stark.Key{Key: key})
 	config.CheckResponseErr(err)
 
 	// print the returned Record

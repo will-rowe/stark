@@ -146,7 +146,7 @@ func runOpen(projectName string) {
 			select {
 			case rec := <-recs:
 				log.Infof("\tPubSub: found record (%v)", rec.GetUuid())
-				_, err := db.Set(ctx, rec)
+				_, err := db.Set(ctx, &starkdb.KeyRecordPair{Key: rec.GetAlias(), Record: rec})
 				if err != nil {
 					errChan <- err
 				}

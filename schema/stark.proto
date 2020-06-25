@@ -5,6 +5,7 @@ syntax = "proto3";
 package stark;
 option go_package = ".;stark";
 
+import "google/protobuf/empty.proto";
 import "google/protobuf/timestamp.proto";
 
 /*
@@ -12,38 +13,20 @@ import "google/protobuf/timestamp.proto";
 
 */
 service StarkDb {
-    rpc Get(Key) returns (Record) {}
-    rpc Set(Record) returns (Record) {}
-    rpc Dump(Key) returns (DbMeta) {}
+    rpc Set(KeyRecordPair) returns (Response) {}
+    rpc Get(Key) returns (Response) {}
+    rpc Dump(google.protobuf.Empty) returns (DbMeta) {}
 }
-
-/*
-    DbMeta.
-
-    This message is used to encode runtime
-    information for a StarkDb.
-*/
-message DbMeta {
-    string Project = 1;             // project name for the current database
-    string Snapshot = 2;            // CID for the current database state
-    string NodeAddress = 3;         // the IPFS node address for the database
-    repeated string Peers = 4;      // the IPFS peers in the swarm
-
-	bool Pinning = 5;               // if true, database is pinning entries
-	bool Announcing = 6;            // if true, database is announcing entries on PubSub
-    int32 CurrEntries = 7;          // current number of entries in the database
-    map<string, string> Pairs = 8;  // pairs of Keys -> Record CIDs held in the database
-}
-
-/*
-    Key.
-
-    This message is used to send queries from
-    gRPC clients to a stark database that implements
-    the StarkDb interface.
-*/
+message KeyRecordPair {
+    string key = 1;
+    Record record = 2;
+  }
 message Key {
-    string id = 1;
+    string key = 1;
+}
+message Response {
+    bool success = 1;
+    Record record = 2;
 }
 
 /*
@@ -73,7 +56,26 @@ message Record {
 }
 
 /*
-    RecordComment is used to describe message history.
+    DbMeta.
+
+    This message is used to encode runtime
+    information for a stark database.
+*/
+message DbMeta {
+    string Project = 1;             // project name for the current database
+    string Snapshot = 2;            // CID for the current database state
+    string NodeAddress = 3;         // the IPFS node address for the database
+    repeated string Peers = 4;      // the IPFS peers in the swarm
+	bool Pinning = 5;               // if true, database is pinning entries
+	bool Announcing = 6;            // if true, database is announcing entries on PubSub
+    int32 CurrEntries = 7;          // current number of entries in the database
+    map<string, string> Pairs = 8;  // pairs of Keys -> Record CIDs held in the database
+}
+
+/*
+    RecordComment.
+    
+    This message is used to describe message history.
 */
 message RecordComment {
     google.protobuf.Timestamp timestamp = 1;        // timestamp for change

@@ -50,15 +50,16 @@ var (
 var addCmd = &cobra.Command{
 	Use:   "add <key>",
 	Short: "Add a record to an open database",
-	Long: `Adds a Record to an open database. It will use
-	th Record's alias as the key in the database.
+	Long: `Adds a Record to an open database using the
+	provided lookup key.
 	
 	This command will read from an input file if provided,
 	otherwise it will check STDIN. If no Record is found,
 	it will use an interactive prompt to populate a new 
 	Record before adding it to the open database.`,
+	Args: cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
-		runAdd()
+		runAdd(args[0])
 	},
 }
 
@@ -69,7 +70,7 @@ func init() {
 }
 
 // runAdd is the main block for the add subcommand
-func runAdd() {
+func runAdd(key string) {
 
 	// check for input data
 	var data []byte
@@ -112,13 +113,13 @@ func runAdd() {
 			log.Fatal(err)
 		}
 		descp = strings.Replace(descp, "\n", "", -1)
-		log.Info("enter Record alias (key):")
-		key, err := bufio.NewReader(os.Stdin).ReadString('\n')
+		log.Info("enter Record alias:")
+		alias, err := bufio.NewReader(os.Stdin).ReadString('\n')
 		if err != nil {
 			log.Fatal(err)
 		}
-		key = strings.Replace(key, "\n", "", -1)
-		record, err = starkdb.NewRecord(starkdb.SetAlias(key), starkdb.SetDescription(descp))
+		key = strings.Replace(alias, "\n", "", -1)
+		record, err = starkdb.NewRecord(starkdb.SetAlias(alias), starkdb.SetDescription(descp))
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -138,10 +139,10 @@ func runAdd() {
 	client := starkdb.NewStarkDbClient(conn)
 
 	// make a Set request
-	rec, err := client.Set(ctx, record)
+	response, err := client.Set(ctx, &starkdb.KeyRecordPair{Key: key, Record: record})
 	config.CheckResponseErr(err)
 
 	// print the key and cid
 	log.Info("added Record to database:")
-	log.Infof("\t%v -> %v\n", rec.GetAlias(), rec.GetPreviousCID())
+	log.Infof("\t%v -> %v\n", response.GetRecord().GetAlias(), response.GetRecord().GetPreviousCID())
 }
